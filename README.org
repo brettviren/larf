@@ -1,0 +1,39 @@
+* Get started
+
+** Install prerequisites for generating meshes
+
+#+BEGIN_SRC sh
+  $ sudo apt-get install gmsh
+  $ virtualenv --system-site-packages venv
+  $ source venv/bin/activate
+  $ pip install pygmsh meshio
+#+END_SRC
+
+** Test mesh generation
+
+#+BEGIN_SRC sh
+  $ python cyl.py 
+  $ gmsh cyl.msh 
+#+END_SRC
+
+** Install BEM++
+
+See [[http://www.bempp.org/installation.html][BEM++ install instructions]].  Eg:
+
+#+BEGIN_SRC sh
+  $ wget http://www.bempp.org/files/python-bempp_wily_3.0.3_amd64.deb
+  $ sudo dpkg -i python-bempp_wily_3.0.3_amd64.deb
+  $ sudo apt-get -f install
+#+END_SRC
+
+If =dpkg= command will fail the subsequent =apt-get= will install missing dependencies and complete the BEM++ installation.
+
+** Install lartpc-field itself
+
+T.b.d. For now do:
+
+#+BEGIN_SRC sh
+  $ git clone ...
+  $ export PYTHONPATH=`pwd`/lartpc-field/python
+  $ python lartpc-field/cyl.py
+#+END_SRC

@@ -1,0 +1,8 @@
+*~
+*.pyc
+venv
+*.msh
+*.geo
+*.deb
+*.npz
+*.png
