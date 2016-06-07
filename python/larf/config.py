@@ -1,7 +1,7 @@
 import os
 from larf.util import unit_eval, listify, get_method
 
-def parase(file):
+def parse(file):
     "Read in configuration file"
 
     from ConfigParser import SafeConfigParser

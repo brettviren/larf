@@ -91,14 +91,15 @@ class Geometry(object):
         
 def msh_physical_names(filename):
     ret = dict()
-    lines = open(filename).getlines()
+    lines = open(filename).readlines()
     for linenum, line in enumerate(lines):
         if not line.startswith('$PhysicalNames'):
             continue
-        nnames = int(line[linenum+1])
+        nnames = int(lines[linenum+1])
         for line in lines[linenum+2:linenum+2+nnames]:
             chunks = line.split(' ',2)
-            ret[chunks[2]] = int(chunks[1])
+            name = chunks[2].strip()
+            ret[name] = int(chunks[1])
         break
     return ret
             

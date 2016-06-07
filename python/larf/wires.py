@@ -55,7 +55,7 @@ def mesh_wire(geo, name, ident, radius, length, center, axis, lcar):
 
 
 class weighting_potential(object):
-    def __init__(self, geo, wire_number=None, **kwds):
+    def __init__(self, wire_number=None, **kwds):
         self.wire_number = wire_number
 
     def __call__(self, r, n, index, result):

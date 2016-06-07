@@ -2,14 +2,13 @@
 
 import click
 import numpy
-import larf.config.parse
-import larf.config.methods_params
 
 
 @click.group()
 @click.option('-c', '--config', help = 'Set configuration file.')
 @click.pass_context
 def cli(ctx, config):
+    import larf.config
     if config:
         ctx.obj['cfg'] = larf.config.parse(config)
     return
@@ -53,7 +52,8 @@ def wiremsh(ctx, output):
 @click.pass_context
 def meshgen(ctx, output, meshname):
     cfg = ctx.obj['cfg']
-    meths, params = larf.config.methods_params
+    import larf.config
+    meths, params = larf.config.methods_params(cfg, 'meshgen %s' % meshname)
 
     import larf.geom
     geo = larf.geom.Geometry()
@@ -66,24 +66,32 @@ def meshgen(ctx, output, meshname):
         
 @cli.command()
 @click.option('-o','--output', help='Set output file')
-@click.option('-w','--wire', default=None, help='Set which wire for which to calculate the weighting field')
-@click.argument('calcname')     # name of calculate section of config file
+@click.option('-w','--wire', default=None,
+              help='Set which wire for which to calculate the weighting field')
+@click.option('-p','--problem', default="weighting",
+              type=click.Choice(['weighting','drifting']), 
+              help='Set the problem to solve')
 @click.argument('meshfile')
 @click.pass_context
-def weighting(ctx, output, wire, calcname, meshfile):
+def solve(ctx, output, wire, problem, meshfile):
     cfg = ctx.obj['cfg']
 
-    calcsec = dict(cfg['calculate %s' % calcname]) # copy
+    calcsec = dict(cfg['solve %s' % problem]) # copy
     boundary = calcsec['boundary']
-    boundary_meths, boundary_params = larf.config.methods_params('boundary %s' % boundary)
+
+    import larf.config
+    boundary_meths, boundary_params = larf.config.methods_params(cfg, 'boundary %s' % boundary)
 
     gridsec = calcsec['gridding']
-    grid_meths, grid_params = larf.config.methods_params('gridding %s' % gridsec)
+    grid_meths, grid_params = larf.config.methods_params(cfg, 'gridding %s' % gridsec)
 
     from larf.geom import msh_physical_names
     mps = msh_physical_names(meshfile)
+
     wire_name = boundary_params.pop('wire',wire)
     wire_number = mps[wire_name]
+    print 'Wire: #%d %s' % ( wire_number, wire_name )
+
     boundary_params.update(wire_number=wire_number, wire_name=wire_name)
     dirichlet_data = boundary_meths[0](**boundary_params)
 
@@ -93,9 +101,35 @@ def weighting(ctx, output, wire, calcname, meshfile):
     arrays = list()
     for gmeth in grid_meths:
         arr = gmeth(dirf,neuf,lins,cons,**grid_params)
-        arrays.push_back(arr)
+        arrays.append(arr)
         
     numpy.savez(output, *arrays)
+
+
+@cli.command()
+@click.option('-o','--outfile', help='Set output file name')
+@click.option('-a','--array', help='Set array name')
+@click.option('-p','--plot', help='Set plot type from config file')
+@click.argument('filename')
+@click.pass_context
+def plot(ctx, outfile, array, plot, filename):
+    cfg = ctx.obj['cfg']
+
+    # get array from file
+    dat = numpy.load(filename).items()
+    arr = dat[0][1]
+    if array:
+        for n,a in dat:
+            if n != array:
+                continue
+            arr = a
+            break
+    
+    import larf.config
+    meths, params = larf.config.methods_params(cfg, 'plotting %s' % plot)
+
+    for meth in meths:
+        meth(arr, outfile, **params)
 
 @cli.command()
 @click.option('-o','--outname', help='Set base name for output files')
