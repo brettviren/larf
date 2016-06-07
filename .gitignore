@@ -8,3 +8,5 @@ venv
 *.png
 *.egg-info
 .cut.py
+README.html
+*.pdf

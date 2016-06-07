@@ -50,10 +50,10 @@ def wiremsh(ctx, output):
 @click.option('-o','--output', help='Set output file')
 @click.argument('meshname')   # name of meshgen section of config file
 @click.pass_context
-def meshgen(ctx, output, meshname):
+def mesh(ctx, output, meshname):
     cfg = ctx.obj['cfg']
     import larf.config
-    meths, params = larf.config.methods_params(cfg, 'meshgen %s' % meshname)
+    meths, params = larf.config.methods_params(cfg, 'mesh %s' % meshname)
 
     import larf.geom
     geo = larf.geom.Geometry()
@@ -103,7 +103,8 @@ def solve(ctx, output, wire, problem, meshfile):
         arr = gmeth(dirf,neuf,lins,cons,**grid_params)
         arrays.append(arr)
         
-    numpy.savez(output, *arrays)
+    if output.endswith('.npz'): # what else should we support?
+        numpy.savez(output, *arrays)
 
 
 @cli.command()
@@ -126,7 +127,7 @@ def plot(ctx, outfile, array, plot, filename):
             break
     
     import larf.config
-    meths, params = larf.config.methods_params(cfg, 'plotting %s' % plot)
+    meths, params = larf.config.methods_params(cfg, 'plot %s' % plot)
 
     for meth in meths:
         meth(arr, outfile, **params)

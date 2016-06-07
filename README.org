@@ -1,3 +1,10 @@
+#+TITLE: LArTPC Field Calculation Using BEM
+
+
+This package calculates the [[https://en.wikipedia.org/wiki/Shockley%E2%80%93Ramo_theorem][Shockley-Ramo]] weighting fields and electrostatic "drift" fields in geometries such as used for liquid argon time projection chambers.  The calculation is performed in 3D using the [[https://en.wikipedia.org/wiki/Boundary_element_method][Boundary Element Method.]]  An example weighting field is below (note: it is not yet validated!).
+
+[[./example.png]]
+
 * Get started
 
 ** Install prerequisites for generating meshes
@@ -6,14 +13,7 @@
   $ sudo apt-get install gmsh
   $ virtualenv --system-site-packages venv
   $ source venv/bin/activate
-  $ pip install pygmsh meshio
-#+END_SRC
-
-** Test mesh generation
-
-#+BEGIN_SRC sh
-  $ python cyl.py 
-  $ gmsh cyl.msh 
+  $ pip install pygmsh meshio nose
 #+END_SRC
 
 ** Install BEM++
@@ -44,34 +44,101 @@ If =dpkg= command will fail the subsequent =apt-get= will install missing depend
 The calculation is run through the =larf= command line tool.  The calculation requires steps:
 
 1. Generate a mesh for electrode surfaces
-2. Identify one electrode (for weighting field calculation) 
-3. Solve the Laplace equation for boundary conditions
-4. Evaluate the solution at points in space
+2. Solve the Laplace equation for boundary conditions and evaluate solution on a grid
+3. Plot or otherwise use the result of the grid-based solution.
 
-** Mesh generation
+** Mesh
 
-This package generates and uses [[http://gmsh.info/doc/texinfo/gmsh.html#MSH-ASCII-file-format][MSH ASCII format]].  To properly book
-keep which elements of the mesh describe a particular electrode some
-care is needed in producing mesh files.  The =larf= command assures
-that the correct MSH /physical ID/ is set.
+This package generates and uses [[http://gmsh.info/doc/texinfo/gmsh.html#MSH-ASCII-file-format][MSH ASCII format]].  Proper bookkeeping in the MSH file is needed to track which elements of the mesh describe a particular electrode.  The =larf= command assures that the correct MSH /physical ID/ is set.
 
 #+BEGIN_SRC sh
-  $ larf wiremsh -o wires.msh
+  $ larf -c example.cfg meshgen -o wires.msh parallel
   $ gmsh wires.msh
 #+END_SRC
 
-** Identify electrodes
+** Solve
 
-Wires are named by their plane letter (one of =u=, =v= or =w=) and zero-based index.
-
-** Calculate
-
-The solution and its evaluation are currently done in one command.
+This step solves a "problem" which is given on the command line.  The default problem is named "=weighting=" and is used to select information from the configuration file.  For weighting field problems a special wire may be specified.  The mesh file produced above is used as input.  An example that solves a problem called "weighting" and evaluating the solution on the associated grid is:
 
 #+BEGIN_SRC sh
-  $ larf weighting -w u1 -o weight-u1 wires.msh 
-  $ display weight-u1.png
-  $ ls weight-u1*
+  $ larf -c example.cfg solve -p weighting -w w15 -o wire15.npz wires.msh
+  $ ls -l wire15.npz
 #+END_SRC
 
-The content of the PNG file is also saved as =numpy= arrays in the =*.npz= file.
+The =.npz= file is a file with one or more =numpy.array=.
+
+** Plot
+
+The =.npz= file produced above can be used as desired.  The =larf= command line tool can use this file to produce some plots.  Like the solution, a plot section of the configuration file is specified and it should associate a gridding which is compatible with the solution.  This compatibility is required to get the axis scale correct.
+
+#+BEGIN_SRC sh
+  $ larf -c example.cfg plot -o wire15.png -p small wire15.npz
+#+END_SRC
+
+The extension of the output file determines its format.
+
+* Configuration
+
+The =larf= tool relies on a configuration file to specify parameters that are expected to be reused between calls to the =larf= command.  The format of this file follows the "INI" schema which consists of named sections of key/value pairs.  Some simple interpretation semantics are then overlayed.
+
+** Section categories and names
+
+Each section name is two words giving the section type or category and an instance name.
+For example this section is in the =mesh= category and named =parallel=:
+
+#+BEGIN_EXAMPLE
+  [mesh parallel]
+  # ... key/value pairs
+#+END_EXAMPLE
+
+** Configuration items
+
+There are two types of key/value configuration items.  
+
+- directives :: reserved keys used to direct the configuration
+- parameters :: key/value pairs taken at face-value
+
+The directives depend on the section category as described:
+
+*** Functional categories
+
+The following categories are "functional":
+
+- mesh :: describe how to construct a surface mesh
+- boundary :: describe a boundary potential
+- gridding :: describe how to generate a grid in space
+- plot :: make a plot
+
+These categories are called "functional" as they are meant to describe a function to call and its parameters.  The "function" is described as a Python "dotted" path consisting of one or more modules and an object.  The parameter set is built from two sources of key/values pairs.  First, a =param= key can be specified and all key/value pairs in the associated =params= section will be used.  This set will be updated with any other key/value pairs given in the original configuration section.  An example makes this clear:
+
+#+BEGIN_EXAMPLE
+  [mesh parallel]
+  methods = larf.wires.parallel
+  params = small dune
+  lcar = 2.5*mm                   
+
+  [params small]
+  nwires = 20
+
+  [params dune]
+  pitch = 5*mm
+  gap = 5*mm
+  radius = 150*um
+#+END_EXAMPLE
+
+In the example a mesh named "parallel" is to be build from the =parallel()= method in the =larf.wires= module.  The parameters given to that function consist of the contents of the "=dune=" and "=small=" configuration sections of type =params=.  The parameter set from these to sections is finally updated with the lone =lcar= parameter (characteristic mesh length) which is given directly in the =mesh parallel= section.
+
+Note the use of units for distance quantities.  The =larf= supports a limited set of units including length and time.  
+
+*** The =solve= category
+
+This =solve= category simply aggregates two functional categories by naming a configuration section in each:
+
+- =boundary= :: names a "boundary" category configuration section
+- =gridding= :: names a "gridding" category configuration section
+
+*** Parameter category
+
+As mostly already described, the =params= configuration section category just holds key/value pairs evaluated at face value.  These can be useful if different =larf= command require sharing the same parameters.  For example both the =solve= and =plot= need to share gridding parameters.
+
+
