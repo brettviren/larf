@@ -6,3 +6,5 @@ venv
 *.deb
 *.npz
 *.png
+*.egg-info
+.cut.py

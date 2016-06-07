@@ -31,7 +31,7 @@ class Scene(object):
         maxfacetind = self._bounds[meshind]
         if meshind == 0:
             return (0, maxfacetind)
-        return (self._bounds[meshind], maxfacetind)
+        return (self._bounds[meshind-1], maxfacetind)
 
     def is_in(self, meshind, facetind):
         bnd = self.bounds(meshind)

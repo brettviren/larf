@@ -12,13 +12,35 @@ import larf.scene
 lcar=2.5*mm
 radius = 0.15*mm                # DUNE 
 pitch = 5*mm                    # DUNE
-charged_wire_index = 10
 nwires = 20
 
+charged_wire_index = 0
+charged_wire_x = pitch
+charged_wire_z = (-(nwires-1)*0.5 + charged_wire_index) * pitch
+
+
+
 #apa = larf.wires.symmetric(pitch,radius=radius)
-wires = larf.wires.parallel(pitch,radius=radius,nwires=nwires,lcar=lcar)
+apa = larf.wires.APA(radius, lcar=lcar)
+wires = larf.wires.parallel(apa, pitch, nwires=nwires)
+assert (len(wires) == nwires*3)
+wire_triangle_count = [len(mesh.triangle) for mesh in wires]
+
 lookup = larf.scene.Scene(wires)
 points,cells = larf.mesh.mesh2gmsh(larf.mesh.merge(wires))
+
+bb_max = np.max(points, axis=0)
+bb_min = np.min(points, axis=0)
+
+print 'Wires (%d) bounding box: \n\t%s ->\n\t%s' % (len(wires), str(bb_min), str(bb_max))
+print 'First few wire meshes:'
+for i,w in enumerate(wires[:5]):
+    bits = []
+    for f in w._fields:
+        bits.append('%s:%d' % (f, len(getattr(w,f))))
+    line = ' '.join(bits)
+    print '\t%d: %s' % (i,line)
+    
 
 import meshio
 meshio.write('cyl.msh', points, cells)
@@ -31,13 +53,28 @@ print 'saved cyl.msh'
 
 import bempp.api
 
-def dirichlet_data(r, n, index, result):
-    'Set the potential on a surface'
-    result[0] = 0.0
-    if lookup.is_in(charged_wire_index, index):
-        result[0] = 1.0        
-        print 'Surf:', index, r
+class DirichletData(object):
+    def __init__(self, charged_wire_index):
+        self.call_count = 0
+        self.wire_count = 0
+        self.unique_indices = set()
+        self.charged_wire_index = charged_wire_index
+        self.indices_in_wire = set()
 
+    def __call__(self, r, n, index, result):
+        'Set the potential on a surface'
+        self.call_count += 1
+        self.unique_indices.add(index)
+        result[0] = 0.0
+        rsq = math.sqrt((r[0]-charged_wire_x)**2 + (r[2]-charged_wire_z)**2) - 0.01
+        
+        if rsq <= radius:
+        #if lookup.is_in(self.charged_wire_index, index):
+            result[0] = 1.0        
+            #print 'Surf:', index, r
+            self.wire_count += 1
+            self.indices_in_wire.add(index)
+dirichlet_data = DirichletData(charged_wire_index)
 grid = bempp.api.import_grid('cyl.msh')
 
 # Piecewise-constant function space is used for the unknown field
@@ -57,15 +94,21 @@ slp = bempp.api.operators.boundary.laplace.single_layer(
     piecewise_const_space, piecewise_lin_space, piecewise_const_space)
 
 dirichlet_fun = bempp.api.GridFunction(piecewise_lin_space, fun=dirichlet_data)
+bempp.api.export(grid_function=dirichlet_fun, file_name='cyl_fun.msh')
+
 
 print 'Evaluating integral equation'
 rhs = (.5*identity+dlp)*dirichlet_fun
 lhs = slp
 
+print 'Dirichlet numbers: indices=%d, wires=%d calls=%d' % \
+    (len(dirichlet_data.unique_indices), dirichlet_data.wire_count, dirichlet_data.call_count)
+print 'Indices in wires: %s' % str(dirichlet_data.indices_in_wire)
+print 'Wire triangles: %d/%d' % (wire_triangle_count[charged_wire_index], sum(wire_triangle_count))
 
 print 'Solving boundary integral equation'
 neumann_fun, info = bempp.api.linalg.cg(slp, rhs, tol=1E-3)
-print info
+print 'Solved info:',info
 
 print 'Gridding'
 n_grid_points = 150
