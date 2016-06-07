@@ -113,3 +113,8 @@ def parallel(geo, pitch=5*mm, gap=None, nwires=15, lcar=0.1*mm, radius=150*um):
 
 
 
+def one(geo, length=10*cm, radius=150*um, lcar=2.5*mm):
+    center = np.array([0.0,0.0,0.0])
+    axis = np.array([0.0,1.0,0.0])
+    mesh_wire(geo, 'wire', 0, radius, length, center, axis, lcar)
+

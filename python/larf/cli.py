@@ -68,8 +68,7 @@ def mesh(ctx, output, meshname):
 @click.option('-o','--output', help='Set output file')
 @click.option('-w','--wire', default=None,
               help='Set which wire for which to calculate the weighting field')
-@click.option('-p','--problem', default="weighting",
-              type=click.Choice(['weighting','drifting']), 
+@click.option('-p','--problem',  
               help='Set the problem to solve')
 @click.argument('meshfile')
 @click.pass_context
@@ -88,7 +87,10 @@ def solve(ctx, output, wire, problem, meshfile):
     from larf.geom import msh_physical_names
     mps = msh_physical_names(meshfile)
 
-    wire_name = boundary_params.pop('wire',wire)
+    wire_name = boundary_params.pop('wire','')
+    if wire:
+        wire_name = wire
+
     wire_number = mps[wire_name]
     print 'Wire: #%d %s' % ( wire_number, wire_name )
 
