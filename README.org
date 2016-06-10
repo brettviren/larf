@@ -1,5 +1,7 @@
 #+TITLE: LArTPC Field Calculation Using BEM
 
+*Note: this package is still a work in progress!*
+
 
 This package calculates the [[https://en.wikipedia.org/wiki/Shockley%E2%80%93Ramo_theorem][Shockley-Ramo]] weighting fields and electrostatic "drift" fields in geometries such as used for liquid argon time projection chambers.  The calculation is performed in 3D using the [[https://en.wikipedia.org/wiki/Boundary_element_method][Boundary Element Method.]]  An example weighting field is below (note: it is not yet validated!).
 
@@ -76,6 +78,14 @@ The =.npz= file produced above can be used as desired.  The =larf= command line 
 #+END_SRC
 
 The extension of the output file determines its format.
+
+** Other examples
+
+#+BEGIN_SRC sh
+  $ larf -c example.cfg mesh -o one.msh one
+  $ larf -c example.cfg solve -p one -w wire -o one.npz one.msh 
+  $ time larf -c example.cfg plot -o one.pdf -p one one.npz 
+#+END_SRC
 
 * Configuration
 

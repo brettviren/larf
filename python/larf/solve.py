@@ -1,12 +1,10 @@
 import numpy as np
 import bempp.api
 
-def boundary_functions(meshfile, boundary_potential):
+def boundary_functions(grid, boundary_potential):
 
     #dirichlet_data = DirichletData(wire_number)
     dirichlet_data = boundary_potential
-
-    grid = bempp.api.import_grid(meshfile)
 
     # Piecewise-constant function space is used for the unknown field
     # normal to the surface (Neumann boundary condition).
@@ -15,6 +13,10 @@ def boundary_functions(meshfile, boundary_potential):
     # The continuous, piecewise linear function space is used for known
     # potentials at the surface (Dirichlet boundary condition).
     piecewise_lin_space = bempp.api.function_space(grid, "P", 1)    # A continuous piecewise polynomial space of order 1
+
+    print 'DoFs: const=%d linear=%d' % (piecewise_const_space.global_dof_count,
+                                        piecewise_lin_space.global_dof_count)
+
 
     identity = bempp.api.operators.boundary.sparse.identity(
         piecewise_lin_space, piecewise_lin_space, piecewise_const_space)

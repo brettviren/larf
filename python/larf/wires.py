@@ -46,23 +46,31 @@ def mesh_wire(geo, name, ident, radius, length, center, axis, lcar):
     axis = np.array(axis)*length
 
     wire = geom.extrude(
-        'Line{%s}' % ','.join([str(c) for c in circ]),
+        'Line{%s}' % ','.join(['-%s'%c for c in circ]),
         translation_axis=axis,
     )
-
+    print geom.get_code()
     mesh = gmsh(geom, verbose=0, name=name, ident=ident)
     geo.add(mesh)
 
 
 class weighting_potential(object):
-    def __init__(self, wire_number=None, **kwds):
-        self.wire_number = wire_number
+    def __init__(self, electrode_number=None, potential=1.0, **kwds):
+        self.wire_number = electrode_number
+        self.potential = potential
+        self.ntot = 0
+        self.nset = 0
 
     def __call__(self, r, n, index, result):
         'Set the potential on a surface'
         result[0] = 0.0
+        self.ntot += 1
         if index == self.wire_number:
-            result[0] = 1.0        
+            self.nset += 1
+            result[0] = self.potential
+
+    def __str__(self):
+        return 'wire %d set to %f on %d of %d' % (self.wire_number, self.potential, self.nset, self.ntot)
 
 
 
@@ -96,7 +104,7 @@ def symmetric(pitch, angle=None, gap=None, radius=0.1*mm, nwires=15, woffset = N
 
 
 #def parallel(pitch, gap=None, radius=0.1*mm, nwires=15,lcar=None):
-def parallel(geo, pitch=5*mm, gap=None, nwires=15, lcar=0.1*mm, radius=150*um):
+def parallel(geo, pitch=5*mm, gap=None, nwires=15, lcar=0.1*mm, radius=150*um, **kwds):
     if gap is None:
         gap = pitch
 

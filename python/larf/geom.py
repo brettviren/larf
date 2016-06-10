@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 
+# fixme: save this in a way that doesn't require the kludgey
+# PhysicalNames and MSH format.  bempp has ways to (re)construct the
+# mesh without needing to go through MSG format.
+
 from collections import OrderedDict
+import bempp.api
 
 class Geometry(object):
     '''
@@ -26,7 +31,6 @@ class Geometry(object):
             if m == mesh:
                 return ident
 
-            
     def msh_dumps(self):
         "Produce MSH ASCII format representation of the data."
         lines = list()
@@ -103,3 +107,7 @@ def msh_physical_names(filename):
         break
     return ret
             
+def read_mesh(filename):
+    mps = msh_physical_names(filename)
+    mesh = bempp.api.import_grid(filename)
+    return mps, mesh

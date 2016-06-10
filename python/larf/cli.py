@@ -5,7 +5,7 @@ import numpy
 
 
 @click.group()
-@click.option('-c', '--config', help = 'Set configuration file.')
+@click.option('-c', '--config', default='larf.cfg', help = 'Set configuration file.')
 @click.pass_context
 def cli(ctx, config):
     import larf.config
@@ -84,21 +84,23 @@ def solve(ctx, output, wire, problem, meshfile):
     gridsec = calcsec['gridding']
     grid_meths, grid_params = larf.config.methods_params(cfg, 'gridding %s' % gridsec)
 
-    from larf.geom import msh_physical_names
-    mps = msh_physical_names(meshfile)
+    from larf.geom import read_mesh
+    mesh_names, mesh_grid = read_mesh(meshfile)
 
     wire_name = boundary_params.pop('wire','')
     if wire:
         wire_name = wire
 
-    wire_number = mps[wire_name]
-    print 'Wire: #%d %s' % ( wire_number, wire_name )
+    wire_number = mesh_names.get(wire_name,0)
+    print 'Electrode: #%d %s' % ( wire_number, wire_name )
 
-    boundary_params.update(wire_number=wire_number, wire_name=wire_name)
+    boundary_params.update(electrode_number=wire_number, electrode_name=wire_name)
     dirichlet_data = boundary_meths[0](**boundary_params)
 
     import larf.solve
-    dirf,neuf,lins,cons = larf.solve.boundary_functions(meshfile, dirichlet_data)
+    dirf,neuf,lins,cons = larf.solve.boundary_functions(mesh_grid, dirichlet_data)
+
+    print dirichlet_data
 
     arrays = list()
     for gmeth in grid_meths:
@@ -113,9 +115,10 @@ def solve(ctx, output, wire, problem, meshfile):
 @click.option('-o','--outfile', help='Set output file name')
 @click.option('-a','--array', help='Set array name')
 @click.option('-p','--plot', help='Set plot type from config file')
+@click.option('-f','--function', help='Set Python dotted path to function', multiple=True)
 @click.argument('filename')
 @click.pass_context
-def plot(ctx, outfile, array, plot, filename):
+def plot(ctx, outfile, array, plot, filename, function):
     cfg = ctx.obj['cfg']
 
     # get array from file
@@ -129,7 +132,7 @@ def plot(ctx, outfile, array, plot, filename):
             break
     
     import larf.config
-    meths, params = larf.config.methods_params(cfg, 'plot %s' % plot)
+    meths, params = larf.config.methods_params(cfg, 'plot %s' % plot, methods=','.join(function))
 
     for meth in meths:
         meth(arr, outfile, **params)

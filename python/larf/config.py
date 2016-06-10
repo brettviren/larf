@@ -11,6 +11,7 @@ def parse(file):
         cfg.readfp(file)
     else:
         file = os.path.expanduser(os.path.expandvars(file))
+        assert(os.path.exists(file))
         cfg.read(file)
 
     ret = dict()
@@ -19,14 +20,15 @@ def parse(file):
         ret[secname] = sec
     return ret
         
-def methods_params(cfg, section):
+def methods_params(cfg, section, methods=None, **kwds):
     sec = dict(cfg[section])
-    meths = [get_method(m) for m in listify(sec.pop('methods'))]
+    methods = methods or sec.pop('methods')
+    meths = [get_method(m) for m in listify(methods)]
     extra = sec.pop('params','')
 
     for pname in listify(extra):
         psec = cfg['params %s' % pname]
         sec.update(psec)
-    
+    sec.update(kwds)
     sec = unit_eval(sec)
     return meths, sec
