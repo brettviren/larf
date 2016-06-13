@@ -1,5 +1,6 @@
 
 import os
+import json
 import subprocess
 import tempfile
 import meshio
@@ -10,14 +11,40 @@ from collections import defaultdict
 import bempp.api as bem
 
 
+def array2dict(a):
+    return dict(
+        type = a.dtype.name,
+        array = a.tolist())
+
+def dict2array(d):
+    return np.asarray(d['array'], d['type'])
+
 class Object(object):
     "A mesh on one object"
     def __init__(self, points=None, elements=None):
-        self.points = points or list()
+        if points is None:
+            points = np.ndarray((0,3), dtype='float')
+        self.points = points
         self.elements = elements or dict()
         
     def __str__(self):
         return "<larf.mesh.Object %d pts, %d eles>" % (len(self.points), len(self.triangle))
+
+    def asdict(self):
+        "Return self as nested dictionary."
+        elements = dict()
+        for k,v in self.elements.items():
+            elements[k] = array2dict(v)
+        return dict(points = array2dict(self.points),
+                    elements = elements)
+
+    def fromdict(self, data):
+        "Set self from nested dictionary as returned by asdict()."
+        ele = dict()
+        for k,v in data['elements'].items():
+            ele[k] = dict2array(v)
+        self.elements = ele
+        self.points = dict2array(data['points'])
 
     @property
     def triangle(self):
@@ -28,7 +55,7 @@ class Object(object):
         self.points, self.elements,_,_,_ = meshio.read(mshfile)
 
     def copy(self):
-        return Object([p.copy() for p in self.points],
+        return Object(self.points.copy(),
                       {k:v.copy() for k,v in self.elements.items()})
 
     def gen(self, geostr):
@@ -56,10 +83,10 @@ class Object(object):
         rot = np.array([[aa+bb-cc-dd, 2*(bc+ad), 2*(bd-ac)],
                         [2*(bc-ad), aa+cc-bb-dd, 2*(cd+ab)],
                         [2*(bd+ac), 2*(cd-ab), aa+dd-bb-cc]])
-        points = list()
+        points = np.ndarray((0,3), dtype='float')
         for p in self.points:
             newp = np.dot(rot, p)
-            points.append(p)
+            points = np.append(points, [newp], axis=0)
         self.points = points
         
 
@@ -73,7 +100,7 @@ class Scene(object):
         self.objects[domain].append(mobj)
 
     def grid(self):
-        "Return a BEM++ grid object for the scene"
+        "Return a BEM++ grid object for the scene."
         fac = bem.GridFactory()
         point_offset = 0
         for domain, mobjs in sorted(self.objects.items()):
@@ -84,4 +111,29 @@ class Scene(object):
                     fac.insert_element(point_offset + tri, domain)
                 point_offset += len(mobj.points)
         return fac.finalize()
+
+    def asdict(self):
+        "Return self as nested dictionary."
+        ret = dict()
+        for dom, objects in self.objects.items():
+            ret[dom] = [o.asdict() for o in objects]
+        return ret
+
+    def fromdict(self, data):
+        "Set self from nested dictionary as returned by asdict()."
+        for dom, objects in data.items():
+            dom = int(dom)      # keys may become strings when sent through JSON
+            for o in objects:
+                mo = Object()
+                mo.fromdict(o)
+                self.add(mo, dom)
+
+    def dumps(self, indent=2):
+        "Serialize self into a string"
+        return json.dumps(self.asdict(), indent=indent)
+
+    def loads(self, string):
+        "Load self from a dumps()'ed  string"
+        dat = json.loads(string)
+        self.fromdict(dat)
 

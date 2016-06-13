@@ -1,128 +1,47 @@
-import math
-
-import pygmsh as pg
 import numpy as np
-from collections import namedtuple
+from larf.units import cm, um, deg
+from larf.shapes import cylinder
+from larf.mesh import Object as MeshObject
 
-from units import mm, cm, um
-from larf.mesh import gmsh
+def prototype(length=10*cm, radius=150*um, angle=0*deg, axis=None, lcar=None):
+    "Return a larf.mesh.Object for a prototype wire along Z direction centered at 0,0,0"
+    if lcar is None:
+        lcar = radius
+    cyl = cylinder(length, radius, lcar)
 
-def norm(vec):
-    arr = np.array(vec)
-    mag = np.linalg.norm(arr)
-    if mag == 0.0: return arr
-    return arr / mag
+    mo = MeshObject()
+    mo.gen(cyl)
+    mo.translate([0,0,-0.5*length])
+    if angle:
+        if axis is None:
+            axis = np.asarray([1,0,0])
+        mo.rotate(angle, axis)
+    return mo
 
-
-def mesh_plane(geo, plane_label, radius, nwires, length, origin, pitch, lcar):
-    'Return meshes for wires in a plane'
-
-    pitch = np.array(pitch)
-
-    xaxis = np.array([1.0, 0.0, 0.0])
-    axis = norm(np.cross(pitch, xaxis))
-
-    domain = (nwires-1)*pitch
-    start = origin - 0.5 * domain - 0.5*length*axis # center the plane on origin
-
-    for ind in range(nwires):
-        point = start + ind*pitch
-        name = '%s%d' % (plane_label, ind)
-        ident = len(geo.meshes)+1
-        mesh_wire(geo, name, ident, radius, length, point, axis, lcar)
-
-
-def mesh_wire(geo, name, ident, radius, length, center, axis, lcar):
-    'Return mesh for one wire.'
-    geom = pg.Geometry()
-    circ = geom.add_circle(radius, lcar=lcar,
-                           num_sections=6,
-                           x0 = center,
-                           R=np.array([
-                               np.array([ 0., 0., 1.]),
-                               np.array([ 1., 0., 0.]),
-                               np.array([ 0., 1., 0.]),
-                           ]))
-    axis = np.array(axis)*length
-
-    wire = geom.extrude(
-        'Line{%s}' % ','.join(['-%s'%c for c in circ]),
-        translation_axis=axis,
-    )
-    print geom.get_code()
-    mesh = gmsh(geom, verbose=0, name=name, ident=ident)
-    geo.add(mesh)
-
-
-class weighting_potential(object):
-    def __init__(self, electrode_number=None, potential=1.0, **kwds):
-        self.wire_number = electrode_number
-        self.potential = potential
-        self.ntot = 0
-        self.nset = 0
-
-    def __call__(self, r, n, index, result):
-        'Set the potential on a surface'
-        result[0] = 0.0
-        self.ntot += 1
-        if index == self.wire_number:
-            self.nset += 1
-            result[0] = self.potential
-
-    def __str__(self):
-        return 'wire %d set to %f on %d of %d' % (self.wire_number, self.potential, self.nset, self.ntot)
-
-
-
-def symmetric(pitch, angle=None, gap=None, radius=0.1*mm, nwires=15, woffset = None, lcar=None):
-    if angle is None:
-        angle = 60.0*np.pi/180.0
-    if gap is None:
-        gap = pitch
-    if woffset is None:
-        offset = 0.5*pitch
-        
-    u_origin = np.array([+gap, 0.0, 0.0])
-    u_pitch = np.array([0.0, pitch*math.sin(angle), pitch*math.cos(angle)])
-
-    v_origin = np.array([0.0, 0.0, 0.0])
-    v_pitch = np.array([0.0, pitch*math.sin(angle), -pitch*math.cos(angle)])
-
-    w_origin = np.array([-gap, 0.0, 0.5*pitch])
-    w_pitch = np.array([0.0, 0.0, pitch])
-
-    apa = APA(radius, lcar=lcar)
-    
-    length = nwires*pitch
-
+def array(proto, nwires, pitch, offset=None):
+    """Replicate <nwires> copies of prototype <proto> along vector <pitch>
+    such that the array is centered at the origin.  The original
+    prototype object is not included in the returned list.
+    """
+    if offset is None:
+        offset = [0,0,0]
+    offset = np.asarray(offset)
+    pitch = np.asarray(pitch)
+    start = (-0.5*nwires)*pitch + offset
     ret = list()
-    ret += apa.mesh_plane("u", nwires, length, u_origin, u_pitch)
-    ret += apa.mesh_plane("v", nwires, length, v_origin, v_pitch)
-    ret += apa.mesh_plane("w", nwires, length, w_origin, w_pitch)
-
+    for count in range(nwires):
+        copy = proto.copy()
+        copy.translate(start + count*pitch)
+        ret.append(copy)
     return ret
 
+def one(length=10*cm, radius=150*um, angle=0*deg, axis="x", lcar=None):
+    "Return a list of one mesh.Object which is a single wire "
+    ind = "xyz".index(axis.lower())
+    axis = [0,0,0]
+    axis[ind] = 1.0
+    p = prototype(length, radius, angle, axis, lcar)
+    return p
 
-#def parallel(pitch, gap=None, radius=0.1*mm, nwires=15,lcar=None):
-def parallel(geo, pitch=5*mm, gap=None, nwires=15, lcar=0.1*mm, radius=150*um, **kwds):
-    if gap is None:
-        gap = pitch
-
-    length = nwires*pitch
-
-    u_origin = np.array([+gap, 0.0, 0.0])
-    v_origin = np.array([0.0, 0.0, 0.0])
-    w_origin = np.array([-gap, 0.0, 0.0])
-    pitch_vec = np.array([0.0, 0.0, pitch])
-
-    mesh_plane(geo, "u", radius, nwires, length, u_origin, pitch_vec, lcar)
-    mesh_plane(geo, "v", radius, nwires, length, v_origin, pitch_vec, lcar)
-    mesh_plane(geo, "w", radius, nwires, length, w_origin, pitch_vec, lcar)
-
-
-
-def one(geo, length=10*cm, radius=150*um, lcar=2.5*mm):
-    center = np.array([0.0,0.0,0.0])
-    axis = np.array([0.0,1.0,0.0])
-    mesh_wire(geo, 'wire', 0, radius, length, center, axis, lcar)
-
+    
+    

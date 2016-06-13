@@ -10,3 +10,5 @@ venv
 .cut.py
 README.html
 *.pdf
+*.msh
+*.json

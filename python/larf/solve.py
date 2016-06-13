@@ -3,7 +3,6 @@ import bempp.api
 
 def boundary_functions(grid, boundary_potential):
 
-    #dirichlet_data = DirichletData(wire_number)
     dirichlet_data = boundary_potential
 
     # Piecewise-constant function space is used for the unknown field
@@ -27,7 +26,6 @@ def boundary_functions(grid, boundary_potential):
 
     dirichlet_fun = bempp.api.GridFunction(piecewise_lin_space, fun=dirichlet_data)
     #bempp.api.export(grid_function=dirichlet_fun, file_name=outname+'_dirichlet.msh')
-
 
     print 'Evaluating integral equation'
     rhs = (.5*identity+dlp)*dirichlet_fun

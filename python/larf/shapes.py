@@ -5,12 +5,14 @@
 from units import mm, cm, um
 
 
-def cylinder(radius=1.0*mm, height=10.0*mm, domain=0, lcar=1.0):
+def cylinder(length=10.0*mm, radius=1.0*mm, lcar=1.0):
+
     geostr = '''
 radius = {radius};
-height = {height};
+length = {length};
 lcar = {lcar};
 '''.format(**locals())
+
     geostr += '''
 Point(1) = { radius, 0, 0, lcar};
 Point(2) = {0,  radius, 0, lcar};
@@ -23,9 +25,8 @@ Circle(2) = {2,5,3};
 Circle(3) = {3,5,4};
 Circle(4) = {4,5,1};
 
-Extrude{0,0,height}{ Line{-1,-2,-3,-4}; }
+Extrude{0,0,length}{ Line{-1,-2,-3,-4}; }
 
 Mesh.Algorithm = 6;
-
 '''
     return geostr

@@ -51,60 +51,103 @@ def wiremsh(ctx, output):
 @click.argument('meshname')   # name of meshgen section of config file
 @click.pass_context
 def mesh(ctx, output, meshname):
+    if output.rsplit('.',1)[1] not in ['json','msh']:
+        raise click.ClickException("Unknown data format for file %s" % output)
+
+
     cfg = ctx.obj['cfg']
     import larf.config
     meths, params = larf.config.methods_params(cfg, 'mesh %s' % meshname)
 
-    import larf.geom
-    geo = larf.geom.Geometry()
+    molist = list()
     for meth in meths:
-        meth(geo, **params)
+        mo = meth(**params)
+        if not type(mo) == list:
+            mo = [mo]
+        molist += mo
+        
+    from larf.mesh import Scene
+    scene = Scene()
+    for count, mo in enumerate(molist):
+        scene.add(mo, count+1)
 
-    with open(output,"w") as fp:
-        fp.write(geo.msh_dumps())
-        fp.write('\n')
+    if output.endswith('.json'):
+        with open(output,"w") as fp:
+            fp.write(scene.dumps())
+        return
+
+    if output.endswith('.msh'):
+        import bempp.api
+        g = scene.grid()
+        bempp.api.export(grid=g, file_name=output)
+        return
+
+def load_meshfile(meshfile):
+    if meshfile.rsplit('.',1)[1] not in ['json','msh']:
+        raise click.ClickException("Unknown data format for file %s" % meshfile)
+    grid = None
+    if meshfile.endswith('.json'):
+        from larf.mesh import Scene
+        scene = Scene()
+        scene.loads(open(meshfile).read())
+        return scene.grid()
+
+    if meshfile.endswith('.msh'):    
+        import bempp.api
+        return bempp.api.import_grid(meshfile)
+
+@cli.command()
+@click.argument('meshfile')
+def meshstats(meshfile):
+    grid = load_meshfile(meshfile)
+    msg = "load grid with"
+    for ind, thing in enumerate(['elements', 'edges', 'vertices']):
+        msg += " %d %s" % (grid.leaf_view.entity_count(ind), thing)
+    click.echo(msg)
         
 @cli.command()
-@click.option('-o','--output', help='Set output file')
-@click.option('-w','--wire', default=None,
-              help='Set which wire for which to calculate the weighting field')
-@click.option('-p','--problem',  
-              help='Set the problem to solve')
+@click.option('-o','--output', required=True, help='Set output file')
+@click.option('-d','--domain', default=0,
+              help='Set the mesh domain number for one electrode for which a weighting field is calculated.')
+@click.option('-p','--potential',  default='larf.potentials.weighting',
+              help='Set the boundary potential to solve (mod.meth or cfg section)')
+@click.option('-g','--gridding',  
+              help='Set grid for the solution (cfg section)')
 @click.argument('meshfile')
 @click.pass_context
-def solve(ctx, output, wire, problem, meshfile):
+def solve(ctx, output, domain, potential, gridding, meshfile):
+    if output.rsplit('.',1)[1] not in ['npz']:
+        raise click.ClickException("Unknown data format for file %s" % output)
+
     cfg = ctx.obj['cfg']
 
-    calcsec = dict(cfg['solve %s' % problem]) # copy
-    boundary = calcsec['boundary']
-
     import larf.config
-    boundary_meths, boundary_params = larf.config.methods_params(cfg, 'boundary %s' % boundary)
+    import larf.util
 
-    gridsec = calcsec['gridding']
-    grid_meths, grid_params = larf.config.methods_params(cfg, 'gridding %s' % gridsec)
+    if '.' in potential:
+        potential_meth = larf.util.get_method(potential)
+        potential_params = dict()
+    else:                       # configuration entry
+        potential_meth, potential_params = larf.config.methods_params(cfg, 'potential %s' % potential)
+        potential_meth = potential_meth[0]
 
-    from larf.geom import read_mesh
-    mesh_names, mesh_grid = read_mesh(meshfile)
+    potential_params.update(domain=int(domain))
 
-    wire_name = boundary_params.pop('wire','')
-    if wire:
-        wire_name = wire
+    grid_meths, grid_params = larf.config.methods_params(cfg, 'gridding %s' % gridding)
 
-    wire_number = mesh_names.get(wire_name,0)
-    print 'Electrode: #%d %s' % ( wire_number, wire_name )
+    dirichlet_data = potential_meth(**potential_params)
+    print dirichlet_data
 
-    boundary_params.update(electrode_number=wire_number, electrode_name=wire_name)
-    dirichlet_data = boundary_meths[0](**boundary_params)
+    grid = load_meshfile(meshfile)
 
     import larf.solve
-    dirf,neuf,lins,cons = larf.solve.boundary_functions(mesh_grid, dirichlet_data)
+    solution = larf.solve.boundary_functions(grid, dirichlet_data)
 
     print dirichlet_data
 
     arrays = list()
     for gmeth in grid_meths:
-        arr = gmeth(dirf,neuf,lins,cons,**grid_params)
+        arr = gmeth(*solution,**grid_params)
         arrays.append(arr)
         
     if output.endswith('.npz'): # what else should we support?
