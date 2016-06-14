@@ -1,5 +1,6 @@
 import numpy as np
-from larf.units import cm, um, deg
+from larf.units import cm, mm, um, deg
+from larf.util import unitify
 from larf.shapes import cylinder
 from larf.mesh import Object as MeshObject
 
@@ -35,13 +36,52 @@ def array(proto, nwires, pitch, offset=None):
         ret.append(copy)
     return ret
 
-def one(length=10*cm, radius=150*um, angle=0*deg, axis="x", lcar=None):
+
+## these are meant to be named in .cfg files.  They should expect
+## strings for their arguments and have a **kwds to soak up any extra
+## parameters that may be specified.
+
+def one(length=10*cm, radius=150*um, angle=0*deg, axis="x", lcar=None, **kwds):
     "Return a list of one mesh.Object which is a single wire "
+    if kwds:
+        print ('one: unexpected parameters: %s' % (', '.join(kwds.keys()), ))
+
+    # fixme: do this in a decorator
+    length = unitify(length)
+    radius = unitify(radius)
+    angle = unitify(angle)
+    lcar = unitify(lcar)
+
+    angle = unitify(angle)
     ind = "xyz".index(axis.lower())
     axis = [0,0,0]
     axis[ind] = 1.0
     p = prototype(length, radius, angle, axis, lcar)
     return p
 
+def parallel(length=10*cm, radius=150*um, gap=5*mm, pitch=5*mm, nwires=0, lcar=None, **kwds):
+    """Return a list of mesh.Objects for a triple of planes with <nwires>
+    per plane and with wires parallel to the Y axis, pitch along Z.
+    Planes centered with first at X=+gap, third at X=-gap.
+
+    """
+    if kwds:
+        print ('parallel: unexpected parameters: %s' % (', '.join(kwds.keys()), ))
+
+    # fixme: do this in a decorator
+    length = unitify(length)
+    radius = unitify(radius)
+    pitch = unitify(pitch)
+    gap = unitify(gap)
+    lcar = unitify(lcar)
     
+    pitchv = [0, 0, pitch]
+    offsets = [[-gap, 0, 0], [0, 0, 0], [+gap, 0, 0]]
+
+    proto = prototype(length, radius, 90*deg, lcar=lcar)
     
+    ret = list()
+    ret += array(proto, nwires, pitchv, [+gap, 0, 0]) # u
+    ret += array(proto, nwires, pitchv, [   0, 0, 0]) # v
+    ret += array(proto, nwires, pitchv, [-gap, 0, 0]) # w
+    return ret

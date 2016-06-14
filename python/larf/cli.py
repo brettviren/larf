@@ -46,13 +46,34 @@ def wiremsh(ctx, output):
     wires = larfwires.parallel(apa, pitch, nwires=nwires)
     apa.write_msh(output)
 
+# http://www.bempp.org/grid.html
+#
+#    Codim-0 entities: Elements of the mesh
+#    Codim-1 entities: Edges of the mesh
+#    Codim-2 entities: Verticies of the mesh
+codims = ['elements', 'edges', 'vertices']
+
+def dump_grid(g):
+
+    points = set()
+    x,y,z = g.leaf_view.vertices
+    npoints = len(x)
+    for i in range(npoints):
+        p = (x[i],y[i],z[i])
+        points.add(p)
+    print npoints, len(points)
+    for ind,thing in enumerate(codims):
+        print ('\t%d: %d %s' % (ind, g.leaf_view.entity_count(ind), thing))
+
+
 @cli.command()
-@click.option('-o','--output', help='Set output file')
+@click.option('-o','--output', help='Set output file', multiple=True)
 @click.argument('meshname')   # name of meshgen section of config file
 @click.pass_context
 def mesh(ctx, output, meshname):
-    if output.rsplit('.',1)[1] not in ['json','msh']:
-        raise click.ClickException("Unknown data format for file %s" % output)
+    for out in output:
+        if out.rsplit('.',1)[1] not in ['json','msh']:
+            raise click.ClickException("Unknown data format for file %s" % output)
 
 
     cfg = ctx.obj['cfg']
@@ -71,15 +92,18 @@ def mesh(ctx, output, meshname):
     for count, mo in enumerate(molist):
         scene.add(mo, count+1)
 
-    if output.endswith('.json'):
-        with open(output,"w") as fp:
-            fp.write(scene.dumps())
-        return
+    for out in output:
+        if out.endswith('.json'):
+            with open(out,"w") as fp:
+                fp.write(scene.dumps())
+            return
 
-    if output.endswith('.msh'):
-        import bempp.api
-        g = scene.grid()
-        bempp.api.export(grid=g, file_name=output)
+        if out.endswith('.msh'):
+            import bempp.api
+            g = scene.grid()
+            bempp.api.export(grid=g, file_name=out)
+            dump_grid(g)
+        
         return
 
 def load_meshfile(meshfile):
@@ -100,10 +124,14 @@ def load_meshfile(meshfile):
 @click.argument('meshfile')
 def meshstats(meshfile):
     grid = load_meshfile(meshfile)
+    dump_grid(grid)
     msg = "load grid with"
-    for ind, thing in enumerate(['elements', 'edges', 'vertices']):
+    for ind, thing in enumerate(codims):
         msg += " %d %s" % (grid.leaf_view.entity_count(ind), thing)
+    ndomains = len(set(grid.leaf_view.domain_indices))
+    msg += " %d unique domains" % ndomains
     click.echo(msg)
+
         
 @cli.command()
 @click.option('-o','--output', required=True, help='Set output file')
@@ -136,14 +164,11 @@ def solve(ctx, output, domain, potential, gridding, meshfile):
     grid_meths, grid_params = larf.config.methods_params(cfg, 'gridding %s' % gridding)
 
     dirichlet_data = potential_meth(**potential_params)
-    print dirichlet_data
 
     grid = load_meshfile(meshfile)
 
     import larf.solve
     solution = larf.solve.boundary_functions(grid, dirichlet_data)
-
-    print dirichlet_data
 
     arrays = list()
     for gmeth in grid_meths:

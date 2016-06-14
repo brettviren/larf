@@ -54,8 +54,10 @@ The calculation is run through the =larf= command line tool.  The calculation re
 This package generates and uses [[http://gmsh.info/doc/texinfo/gmsh.html#MSH-ASCII-file-format][MSH ASCII format]].  Proper bookkeeping in the MSH file is needed to track which elements of the mesh describe a particular electrode.  The =larf= command assures that the correct MSH /physical ID/ is set.
 
 #+BEGIN_SRC sh
-  $ larf -c example.cfg meshgen -o wires.msh parallel
-  $ gmsh wires.msh
+  $ larf mesh -o one.msh one
+  $ gmsh one.msh
+  $ larf mesh -o parallel.msh parallel
+  $ gmsh parallel.msh
 #+END_SRC
 
 ** Solve
@@ -63,8 +65,8 @@ This package generates and uses [[http://gmsh.info/doc/texinfo/gmsh.html#MSH-ASC
 This step solves a "problem" which is given on the command line.  The default problem is named "=weighting=" and is used to select information from the configuration file.  For weighting field problems a special wire may be specified.  The mesh file produced above is used as input.  An example that solves a problem called "weighting" and evaluating the solution on the associated grid is:
 
 #+BEGIN_SRC sh
-  $ larf -c example.cfg solve -p weighting -w w15 -o wire15.npz wires.msh
-  $ ls -l wire15.npz
+  $ larf solve -d 10 -g near -o parallel-near-d10.npz parallel.msh
+  $ ls -l parallel-near-d10.npz
 #+END_SRC
 
 The =.npz= file is a file with one or more =numpy.array=.
@@ -74,22 +76,20 @@ The =.npz= file is a file with one or more =numpy.array=.
 The =.npz= file produced above can be used as desired.  The =larf= command line tool can use this file to produce some plots.  Like the solution, a plot section of the configuration file is specified and it should associate a gridding which is compatible with the solution.  This compatibility is required to get the axis scale correct.
 
 #+BEGIN_SRC sh
-  $ larf -c example.cfg plot -o wire15.png -p small wire15.npz
+  $ larf plot -o parallel-near.pdf -p near parallel-near-d10.npz
 #+END_SRC
 
 The extension of the output file determines its format.
 
-** Other examples
-
-#+BEGIN_SRC sh
-  $ larf -c example.cfg mesh -o one.msh one
-  $ larf -c example.cfg solve -p one -w wire -o one.npz one.msh 
-  $ time larf -c example.cfg plot -o one.pdf -p one one.npz 
-#+END_SRC
+[[./parallel-near.png]]
 
 * Configuration
 
-The =larf= tool relies on a configuration file to specify parameters that are expected to be reused between calls to the =larf= command.  The format of this file follows the "INI" schema which consists of named sections of key/value pairs.  Some simple interpretation semantics are then overlayed.
+The =larf= tool relies on a configuration file to specify parameters that are expected to be reused between calls to the =larf= command.  The format of this file follows the "INI" schema which consists of named sections of key/value pairs.  Some simple interpretation semantics are then overlayed.  The default configuration file is in the current working directory and named [[./larf.cfg][=larf.cfg=]].  A different file can be specified with the =-c= option
+
+#+BEGIN_SRC sh
+  $ larf -c myconfig.cfg ...
+#+END_SRC
 
 ** Section categories and names
 

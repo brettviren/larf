@@ -27,15 +27,18 @@ def boundary_functions(grid, boundary_potential):
     dirichlet_fun = bempp.api.GridFunction(piecewise_lin_space, fun=dirichlet_data)
     #bempp.api.export(grid_function=dirichlet_fun, file_name=outname+'_dirichlet.msh')
 
+    print dirichlet_data
+
     print 'Evaluating integral equation'
     rhs = (.5*identity+dlp)*dirichlet_fun
     lhs = slp
         
+    print dirichlet_data
 
     print 'Solving boundary integral equation'
     neumann_fun, info = bempp.api.linalg.cg(slp, rhs, tol=1E-3)
     #bempp.api.export(grid_function=neumann_fun, file_name=outname+'_neumann.msh')
-    print type(neumann_fun)
+    #print type(neumann_fun)
 
     return (dirichlet_fun, neumann_fun, piecewise_lin_space, piecewise_const_space)
 
@@ -55,6 +58,7 @@ def gridding(dirichlet_fun, neumann_fun, piecewise_lin_space, piecewise_const_sp
              plot_grid[0].ravel()]
     points = np.vstack((stack[indices[0]], stack[indices[1]], stack[indices[2]]))
 
+    print 'Gridding on %d X %d' % (ngridx,ngridy)
     slp_pot = bempp.api.operators.potential.laplace.single_layer(piecewise_const_space,points)
     dlp_pot = bempp.api.operators.potential.laplace.double_layer(piecewise_lin_space,points)
     u_evaluated = slp_pot*neumann_fun-dlp_pot*dirichlet_fun

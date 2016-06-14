@@ -7,6 +7,13 @@ from larf.units import deg
 import bempp.api as bem
 
 
+# http://www.bempp.org/grid.html
+#
+#    Codim-0 entities: Elements of the mesh
+#    Codim-1 entities: Edges of the mesh
+#    Codim-2 entities: Verticies of the mesh
+codims = ['elements', 'edges', 'vertices']
+
 def compare_scene(s1, s2):
     k1 = s1.objects.keys()
     k1.sort()
@@ -29,8 +36,8 @@ def compare_scene(s1, s2):
 def compare_grid(g1, g2):
     lv1 = g1.leaf_view
     lv2 = g2.leaf_view
-    for ind in range(3):
-        print ind,lv1.entity_count(ind), lv2.entity_count(ind)
+    for ind,thing in enumerate(codims):
+        print ind,thing,lv1.entity_count(ind), lv2.entity_count(ind)
         #assert lv1.entity_count(ind) == lv2.entity_count(ind)
     for count,(v1,v2) in enumerate(zip(lv1.vertices, lv2.vertices)):
         if len(v1) != len(v2):
@@ -117,5 +124,5 @@ def test_one():
 
 if '__main__' == __name__:
     test_something()
-#    test_one()
+    test_one()
     

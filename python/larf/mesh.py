@@ -73,7 +73,9 @@ class Object(object):
         self.points += offset
 
     def rotate(self, angle, axis = None):
-        axis = np.asarray(axis or [1,0,0])
+        if axis is None:
+            axis = [1,0,0]
+        axis = np.asarray(axis)
         theta = np.asarray(angle)
         axis = axis/math.sqrt(np.dot(axis, axis))
         a = math.cos(theta/2.0)
@@ -115,7 +117,7 @@ class Scene(object):
     def asdict(self):
         "Return self as nested dictionary."
         ret = dict()
-        for dom, objects in self.objects.items():
+        for dom, objects in sorted(self.objects.items()):
             ret[dom] = [o.asdict() for o in objects]
         return ret
 
