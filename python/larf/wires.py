@@ -5,6 +5,8 @@ from larf.util import unitify
 from larf.shapes import cylinder
 from larf.mesh import Object as MeshObject
 
+
+
 def prototype(length=10*cm, radius=150*um, angle=0*deg, axis=None, lcar=None):
     "Return a larf.mesh.Object for a prototype wire along Z direction centered at 0,0,0"
     if lcar is None:
@@ -140,3 +142,5 @@ def symmetric(angle=60*deg, length=10*cm, radius=150*um, gap=None, pitch=5*mm, n
     ret += array(w_proto, nwires, w_pitch, [-gap, 0, woffset])
 
     return ret
+
+
