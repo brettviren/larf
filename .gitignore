@@ -12,3 +12,16 @@ README.html
 *.pdf
 *.msh
 *.json
+*.aux
+*.fls
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.fdb_latexmk
+cut.py
+*.gz
+old
+cut.cfg
+auto

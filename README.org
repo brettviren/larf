@@ -1,13 +1,23 @@
 #+TITLE: LArTPC Field Calculation Using BEM
 
+* Overview
+
 *Note: this package is still a work in progress!*
 
+This package provides calculations which can be used to determine the field response of drifting charge in a LArTPC.  It does this by providing various calculations:
 
-This package calculates the [[https://en.wikipedia.org/wiki/Shockley%E2%80%93Ramo_theorem][Shockley-Ramo]] weighting fields and electrostatic "drift" fields in geometries such as used for liquid argon time projection chambers.  The calculation is performed in 3D using the [[https://en.wikipedia.org/wiki/Boundary_element_method][Boundary Element Method.]]  An example weighting field is below (note: it is not yet validated!).
+ - [ ] applied electrostatic drift field in 3D
+ - [ ] [[https://en.wikipedia.org/wiki/Shockley%E2%80%93Ramo_theorem][Shockley-Ramo]] weighting fields for each wire in 3D
+ - [ ] electrode currents as a function of time by stepping test charges through these fields
+ - [ ] average field response functions
 
-[[./example.png]]
+As each of the above is done it is checked off.
 
-* Get started
+The field calculations are performed in 3D using the [[https://en.wikipedia.org/wiki/Boundary_element_method][Boundary Element Method.]]  
+
+More information on the method and results is provided under [[./docs/]].
+
+* Installation
 
 ** Install prerequisites for generating meshes
 
@@ -41,13 +51,17 @@ If =dpkg= command will fail the subsequent =apt-get= will install missing depend
   $ larf 
 #+END_SRC
 
+
 * Running
 
-The calculation is run through the =larf= command line tool.  The calculation requires steps:
+The calculation is run through the =larf= command line tool.  The calculation requires these steps:
 
-1. Generate a mesh for electrode surfaces
+1. Generate a mesh for electrode surfaces at a given "characteristic length"
 2. Solve the Laplace equation for boundary conditions and evaluate solution on a grid
 3. Plot or otherwise use the result of the grid-based solution.
+
+The choice of the characteristic length in step 1 determines the number of triangles in the grid and has strong implications on how long it takes to perform the calculation.
+Steps 2 and 3 require coordinated use of the same grid.
 
 ** Mesh
 
@@ -55,9 +69,14 @@ This package generates and uses [[http://gmsh.info/doc/texinfo/gmsh.html#MSH-ASC
 
 #+BEGIN_SRC sh
   $ larf mesh -o one.msh one
-  $ gmsh one.msh
   $ larf mesh -o parallel.msh parallel
-  $ gmsh parallel.msh
+  $ larf mesh -o uboone.msh uboone
+#+END_SRC
+
+Meshes can be easily viewed with =gmsh=:
+
+#+BEGIN_SRC sh
+  $ gmsh uboone.msh
 #+END_SRC
 
 ** Solve

@@ -24,6 +24,8 @@ def unit_dict():
 
 def unitify(expression, **variables):
     "Return expression string as numeric value resolving units."
+    if expression is None:
+        return None
     if isinstance(expression, numbers.Number):
         return expression
     try:
