@@ -42,3 +42,17 @@ def unit_eval(kwds, **variables):
     return ret
 
 
+def expand_range_dict(d):
+    "Expand a dictionary with keys that are either integers, lists of integers of 2-tuple of integers (ranges)"
+    ret = dict()
+    for k,v in d.items():
+        if isinstance(k, numbers.Number):
+            ret[k] = v
+            continue
+        if isinstance(k, tuple):
+            for ind in range(*k):
+                ret[ind] = v
+            continue
+        for ind in k:
+            ret[ind] = v
+    return ret

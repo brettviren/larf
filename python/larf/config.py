@@ -20,15 +20,28 @@ def parse(file):
         ret[secname] = sec
     return ret
         
-def methods_params(cfg, section, methods=None, **kwds):
+def methods_params(cfg, section, methods=None, recurse_key = None, **kwds):
+    sectype,secname = section.split(' ',1)
+
     sec = dict(cfg[section])
-    methods = methods or sec.pop('methods')
+
+    ret = list()
+
+    # methods directly passed in or given in config
+    methods = methods or sec.pop('methods', '')
     meths = [get_method(m) for m in listify(methods)]
     extra = sec.pop('params','')
-
     for pname in listify(extra):
         psec = cfg['params %s' % pname]
         sec.update(psec)
     sec.update(kwds)
     sec = unit_eval(sec)
-    return meths, sec
+    ret +=  [(m,sec) for m in meths]
+
+    # recurse if requested
+    if recurse_key:
+        recur = sec.pop(recurse_key, '')
+        for daughter in listify(recur):
+            ret += methods_params(cfg, '%s %s' % (sectype, daughter), recurse_key=recurse_key, **kwds)
+
+    return ret
