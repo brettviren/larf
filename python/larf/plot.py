@@ -8,7 +8,7 @@ def slice(arr, outfile, title="BEM Calculation (potential)", ngridx=150, ngridy=
     matplotlib.rcParams['figure.figsize'] = (5.0, 4.0) # Adjust the figure size in IPython
     toplot = arr.T
     if kwds.get('log',False):
-        toplot = np.log10(toplot)
+        toplot = np.log10(np.abs(toplot))
     plt.imshow(toplot, extent=(xrange[0],xrange[1], yrange[0],yrange[1]), origin='lower')
     if limits:
         plt.clim(*limits)

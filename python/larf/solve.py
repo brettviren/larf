@@ -18,9 +18,9 @@ def boundary_functions(grid, boundary_potential):
 
     t2 = now()
 
-    print 'DoFs: const=%d linear=%d in %.1f' % (piecewise_const_space.global_dof_count,
-                                                piecewise_lin_space.global_dof_count,
-                                                t2-t1)
+    print 'DoFs: const=%d linear=%d in %.1f sec' % (piecewise_const_space.global_dof_count,
+                                                    piecewise_lin_space.global_dof_count,
+                                                    t2-t1)
 
 
     identity = bempp.api.operators.boundary.sparse.identity(
@@ -37,14 +37,14 @@ def boundary_functions(grid, boundary_potential):
 
     t4 = now()
 
-    print 'Made boundary function in %.1f' % (t4-t3,)
+    print 'Made boundary function in %.1f sec' % (t4-t3,)
 
     print 'Evaluating integral equation'
     rhs = (.5*identity+dlp)*dirichlet_fun
     lhs = slp
         
     t5 = now()
-    print '\tin %.1f' % (t5-t4,)
+    print '\tin %.1f sec' % (t5-t4,)
 
     print dirichlet_data
 
@@ -54,7 +54,7 @@ def boundary_functions(grid, boundary_potential):
     #print type(neumann_fun)
 
     t6 = now()
-    print '\tin %.1f' % (t6-t5)
+    print '\tin %.1f sec' % (t6-t5)
 
     return (dirichlet_fun, neumann_fun, piecewise_lin_space, piecewise_const_space)
 
@@ -83,6 +83,6 @@ def gridding(dirichlet_fun, neumann_fun, piecewise_lin_space, piecewise_const_sp
     u_reshaped = u_evaluated.reshape((ngridx, ngridy))
 
     t2 = now()
-    print '\tin %.1f' % (t2-t1,)
+    print '\tin %.1f sec' % (t2-t1,)
 
     return u_reshaped

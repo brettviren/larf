@@ -11,7 +11,8 @@ def parse(file):
         cfg.readfp(file)
     else:
         file = os.path.expanduser(os.path.expandvars(file))
-        assert(os.path.exists(file))
+        if not os.path.exists(file):
+            raise ValueError('No such file: %s' % file)
         cfg.read(file)
 
     ret = dict()
