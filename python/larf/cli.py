@@ -72,9 +72,8 @@ def dump_grid(g):
 @click.pass_context
 def mesh(ctx, output, meshname):
     for out in output:
-        if out.rsplit('.',1)[1] not in ['json','msh']:
+        if out.rsplit('.',1)[1] not in ['json', 'msh', 'npz']:
             raise click.ClickException("Unknown data format for file %s" % output)
-
 
     cfg = ctx.obj['cfg']
 
@@ -94,10 +93,13 @@ def mesh(ctx, output, meshname):
         scene.add(mo, count+1)
 
     for out in output:
+
+        if out.endswith('.npz'):
+            numpy.savez_compressed(out, **scene.tonumpy())
+
         if out.endswith('.json'):
             with open(out,"w") as fp:
                 fp.write(scene.dumps())
-            return
 
         if out.endswith('.msh'):
             import bempp.api
@@ -108,9 +110,9 @@ def mesh(ctx, output, meshname):
         return
 
 def load_meshfile(meshfile):
-    if meshfile.rsplit('.',1)[1] not in ['json','msh']:
+    if meshfile.rsplit('.',1)[1] not in ['json','msh','npz']:
         raise click.ClickException("Unknown data format for file %s" % meshfile)
-    grid = None
+
     if meshfile.endswith('.json'):
         from larf.mesh import Scene
         scene = Scene()
@@ -120,6 +122,21 @@ def load_meshfile(meshfile):
     if meshfile.endswith('.msh'):    
         import bempp.api
         return bempp.api.import_grid(meshfile)
+
+    if meshfile.endswith('.npz'):
+        import numpy
+        import bempp.api as bem
+        dat = numpy.load(meshfile).items()
+        dat = {k:v for k,v in dat}
+        fac = bem.GridFactory()
+        for p in dat['points']:
+            fac.insert_vertex(p) 
+        tri = dat['triangles']
+        dom = dat.get('domains', numpy.ones(len(tri)))
+        for t,d in zip(tri,dom):
+            fac.insert_element(t, d)
+        return fac.finalize()
+        
 
 @cli.command()
 @click.argument('meshfile')

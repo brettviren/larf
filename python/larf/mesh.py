@@ -139,3 +139,32 @@ class Scene(object):
         dat = json.loads(string)
         self.fromdict(dat)
 
+    def tonumpy(self):
+        """Return dictionary of numpy arrays.
+        - points = (Nvert,3) array of x,y,z vertex points
+        - triangles = (Ntriangles,3) of indices into points
+        - domains = (Ntriangles) of domain numbers
+        
+        The returned dictionary is suitable for use like:
+
+        >>> numpy.savez("myfile.npz", **myscene.tonumpy())
+
+        or
+
+        >>> numpy.savez_compressed("myfile.npz", **myscene.tonumpy())
+
+        """
+        import numpy
+        points = numpy.ndarray((0,3), dtype=float)
+        triangles = numpy.ndarray((0,3), dtype=int)
+        domains = numpy.ndarray((0,), dtype=int)
+
+        points_offset = 0
+        for dom, objects in sorted(self.objects.items()):
+            for obj in objects:
+                points = numpy.vstack((points, obj.points))
+                ntris = len(obj.triangle)
+                triangles = numpy.vstack((triangles, obj.triangle + points_offset))
+                domains = numpy.r_[domains, numpy.ones(ntris)*dom]
+                points_offset += len(obj.points)
+        return dict(points=points, triangles=triangles, domains=domains)

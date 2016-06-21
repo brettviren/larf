@@ -34,3 +34,4 @@ def gradmag(arr, outfile, title="BEM Calculation (gradmag)", ngridx=150, ngridy=
     plt.colorbar()
     plt.title(title)
     plt.savefig(outfile)
+
