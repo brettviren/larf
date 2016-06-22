@@ -6,12 +6,29 @@ import numpy
 
 @click.group()
 @click.option('-c', '--config', default='larf.cfg', help = 'Set configuration file.')
+@click.option('-P', '--param', type=str, multiple=True,
+              help='Set key=value overriding any from the configuration file')
 @click.pass_context
-def cli(ctx, config):
+def cli(ctx, config, param):
+    from larf.util import listify
+
+    params = dict()
+    for p in listify(' '.join(param)):
+        k,v = p.split('=')
+        params[k] = v
+    ctx.obj['params'] = params
+
     import larf.config
     if config:
         ctx.obj['cfg'] = larf.config.parse(config)
     return
+
+
+@cli.command()
+@click.option('-o','--output', help='Set output file')
+@click.pass_context
+def junk(ctx, output):
+    print ctx.obj['params']
 
 
 @cli.command()
@@ -93,6 +110,7 @@ def mesh(ctx, output, meshname):
         scene.add(mo, count+1)
 
     for out in output:
+        click.echo('saving to %s' % out)
 
         if out.endswith('.npz'):
             numpy.savez_compressed(out, **scene.tonumpy())
@@ -107,7 +125,7 @@ def mesh(ctx, output, meshname):
             bempp.api.export(grid=g, file_name=out)
             dump_grid(g)
         
-        return
+    return
 
 def load_meshfile(meshfile):
     if meshfile.rsplit('.',1)[1] not in ['json','msh','npz']:
@@ -150,25 +168,25 @@ def meshstats(meshfile):
     msg += " %d unique domains" % ndomains
     click.echo(msg)
 
-        
+
 @cli.command()
 @click.option('-o','--output', required=True, help='Set output file')
 @click.option('-d','--domain', default=0,
               help='Set the mesh domain number for one electrode for which a weighting field is calculated.')
 @click.option('-p','--potential',  default='larf.potentials.weighting',
               help='Set the boundary potential to solve (mod.meth or cfg section)')
-@click.option('-g','--gridding',  
-              help='Set grid for the solution (cfg section)')
 @click.argument('meshfile')
 @click.pass_context
-def solve(ctx, output, domain, potential, gridding, meshfile):
+def solve(ctx, output, domain, potential, meshfile):
+    import larf.solve
+    import larf.config
+    import larf.util
+
+
     if output.rsplit('.',1)[1] not in ['npz']:
         raise click.ClickException("Unknown data format for file %s" % output)
 
     cfg = ctx.obj['cfg']
-
-    import larf.config
-    import larf.util
 
     if '.' in potential:
         potential_class = larf.util.get_method(potential)
@@ -180,19 +198,57 @@ def solve(ctx, output, domain, potential, gridding, meshfile):
     potential_params.update(domain=int(domain))
     dirichlet_data = potential_class(**potential_params)
 
-    grid_tocall = larf.config.methods_params(cfg, 'gridding %s' % gridding)
-
     grid = load_meshfile(meshfile)
 
+    dfun, nfun = larf.solve.boundary_functions(grid, dirichlet_data)
+    larf.solve.save(output, grid, dfun, nfun)
+
+    dump_grid(grid)
+    dump_fun(dfun)
+    dump_fun(nfun)
+
+    return
+
+def dump_fun(fun):
+    print '%d coefficients' % len(fun.coefficients)
+
+@cli.command()
+@click.argument('solfile')
+def solstats(solfile):
     import larf.solve
-    solution = larf.solve.boundary_functions(grid, dirichlet_data)
+    grid, dfun, nfun = larf.solve.load(solfile)
+    dump_grid(grid)
+    dump_fun(dfun)
+    dump_fun(nfun)
+    msg = "load grid with"
+    for ind, thing in enumerate(codims):
+        msg += " %d %s" % (grid.leaf_view.entity_count(ind), thing)
+    ndomains = len(set(grid.leaf_view.domain_indices))
+    msg += " %d unique domains" % ndomains
+    click.echo(msg)
+
+
+@cli.command()
+@click.option('-o','--output', required=True, help='Set output file')
+@click.option('-r','--raster',  
+              help='Set raster method (cfg section)')
+@click.argument('solutionfile')
+@click.pass_context
+def raster(ctx, output, raster, solutionfile):
+    import larf.solve
+    import larf.config
+
+    grid, dfun, nfun = larf.solve.load(solutionfile)
+
+    cfg = ctx.obj['cfg']
+    grid_tocall = larf.config.methods_params(cfg, 'raster %s' % raster)
 
     arrays = list()
     for gmeth, gparams in grid_tocall:
-        arr = gmeth(*solution,**gparams)
+        arr = gmeth(grid, dfun, nfun,**gparams)
         arrays.append(arr)
         
-    if output.endswith('.npz'): # what else should we support?
+    if output.endswith('.npz'):
         numpy.savez(output, *arrays)
 
 
@@ -207,15 +263,10 @@ def plot(ctx, outfile, array, plot, filename, function):
     cfg = ctx.obj['cfg']
 
     # get array from file
-    dat = numpy.load(filename).items()
-    arr = dat[0][1]
-    if array:
-        for n,a in dat:
-            if n != array:
-                continue
-            arr = a
-            break
+    dat = {k:v for k,v in numpy.load(filename).items()}
+    arr = dat[array]
     
+
     import larf.config
     tocall = larf.config.methods_params(cfg, 'plot %s' % plot, methods=','.join(function))
 

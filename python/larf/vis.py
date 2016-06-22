@@ -10,3 +10,7 @@ def mesh(outfile=None, points=None, triangles=None, potentials=None, **kwds):
     if outfile:
         mlab.savefig(outfile)
     return tm
+
+def potential(outfile=None, ):
+    pass
+

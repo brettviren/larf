@@ -56,43 +56,80 @@ If =dpkg= command will fail the subsequent =apt-get= will install missing depend
 
 The calculation is run through the =larf= command line tool.  The calculation requires these steps:
 
-1. Generate a mesh for electrode surfaces at a given "characteristic length"
-2. Solve the Laplace equation for boundary conditions and evaluate solution on a grid
-3. Plot or otherwise use the result of the grid-based solution.
+1. Generate a mesh for electrode surfaces.
+2. Solve the Laplace equation for given boundary conditions.
+3. Evaluate solution at some set of points in the volume.
+4. Plot or otherwise use the results.
 
-The choice of the characteristic length in step 1 determines the number of triangles in the grid and has strong implications on how long it takes to perform the calculation.
-Steps 2 and 3 require coordinated use of the same grid.
+The result of each step can (and should) be saved for use as input for the subsequent step.  Each step is described further in the following sections.
 
 ** Mesh
 
-This package generates and uses [[http://gmsh.info/doc/texinfo/gmsh.html#MSH-ASCII-file-format][MSH ASCII format]].  Proper bookkeeping in the MSH file is needed to track which elements of the mesh describe a particular electrode.  The =larf= command assures that the correct MSH /physical ID/ is set.
+The "mesh" (or "grid" in BEM++ language) describes the boundary surface in terms of facets (triangles in this case).  The mesh is defined in terms of three quantities:
+
+- =vertices= :: a 2D array of 3D Cartesian coordinates of points from which the facets are made.
+- =elements= :: a 2D array of ordered triplets of indices into the vertices array.  The ordering is such that the normal direction produced by the right-hand-rule points into the region of zero field (ie, into the material or away from the volume where the field is to be calculated).
+- =domains= :: a 1D array with each entry providing a domain index for each entry in the /elements/ array.  Domain indices are simply numbers used to associate a set of mesh elements (this is used to assign a boundary potential).
+
+Meshes can be provided in a number of ways:
+
+- [[http://gmsh.info/doc/texinfo/gmsh.html#MSH-ASCII-file-format][MSH ASCII format]] files with care taken to encode the domain indices.
+- Numpy =.npz= format with keys named as in the above list.
+- Generated internally by =larf mesh=
+
+To generate a mesh with =larf mesh= one names a =[mesh]= section in the =larf.cfg= file.  More info on configuration is below.  Generated meshes can be saved to one of the supported file formats:
 
 #+BEGIN_SRC sh
   $ larf mesh -o one.msh one
-  $ larf mesh -o parallel.msh parallel
-  $ larf mesh -o uboone.msh uboone
+  $ larf mesh -o parallel.npz parallel
+  $ larf mesh -o uboone.npz -o uboone.msh uboone
 #+END_SRC
 
-Meshes can be easily viewed with =gmsh=:
+Meshes in MSH format can be easily viewed with =gmsh=:
 
 #+BEGIN_SRC sh
   $ gmsh uboone.msh
 #+END_SRC
 
+
 ** Solve
 
-This step solves a "problem" which is given on the command line.  The default problem is named "=weighting=" and is used to select information from the configuration file.  For weighting field problems a special wire may be specified.  The mesh file produced above is used as input.  An example that solves a problem called "weighting" and evaluating the solution on the associated grid is:
+This step integrates the Laplace equation and evaluates that solution
+at the boundary using potentials defined on the mesh.  Ultimately,
+boundary potentials are defined in terms of the domain indices
+(described above).  There are two classes of potentials to solve:
+/drift/ and /weighting/.  Solving for the /drift/ potential requires
+some detailed boundary potential specification and is accomplished by
+mapping individual or ranges of domain indices to voltage values.
+The /weighting/ potential requires only specifying which domain to
+focus on, setting it to unit voltage and setting all other domains to
+0V.  To simplify the specification each case has its own rule to apply
+parameters to define the potential.  This is all specified through the
+command line and configuration file.
 
 #+BEGIN_SRC sh
-  $ larf solve -d 10 -g near -o parallel-near-d10.npz parallel.msh
-  $ ls -l parallel-near-d10.npz
+  $ larf solve -p weghting -d 11 -o parallel-near-d10.npz parallel.msh
+  $ larf solve -p drift          -o parallel-drift.npz parallel.msh
 #+END_SRC
 
-The =.npz= file is a file with one or more =numpy.array=.
+The first example uses the /weighting/ potential defined in =larf.cfg= with the domain index 11 called out as special (ie, that wire will be set to 1V).  The second example uses the /drift/ potential defined in =larf.cfg=.  In that definition the potential of all domains are described through a map like:
+
+#+BEGIN_EXAMPLE
+domain_voltage_map = {(1,21):-200*V, (21,41):0*V, (41,61):200*V, 61:-500*2*V, 62:500*2*V}
+#+END_EXAMPLE
+
+The output =.npz= file contains the solved integral function evaluated
+at the boundary.  It can be used for input to the rastering step.
+
+** Raster
+
+This step evaluates the solution from the prior step at points throughout the volume.
+
+
 
 ** Plot
 
-The =.npz= file produced above can be used as desired.  The =larf= command line tool can use this file to produce some plots.  Like the solution, a plot section of the configuration file is specified and it should associate a gridding which is compatible with the solution.  This compatibility is required to get the axis scale correct.
+The =.npz= file produced above can be used as desired.  The =larf= command line tool can use this file to produce some plots.  Like the solution, a plot section of the configuration file is specified and it should associate a raster which is compatible with the solution.  This compatibility is required to get the axis scale correct.
 
 #+BEGIN_SRC sh
   $ larf plot -o parallel-near.pdf -p near parallel-near-d10.npz
@@ -135,7 +172,7 @@ The following categories are "functional":
 
 - mesh :: describe how to construct a surface mesh
 - boundary :: describe a boundary potential
-- gridding :: describe how to generate a grid in space
+- raster :: describe how to raster the solution over some space
 - plot :: make a plot
 
 These categories are called "functional" as they are meant to describe a function to call and its parameters.  The "function" is described as a Python "dotted" path consisting of one or more modules and an object.  The parameter set is built from two sources of key/values pairs.  First, a =param= key can be specified and all key/value pairs in the associated =params= section will be used.  This set will be updated with any other key/value pairs given in the original configuration section.  An example makes this clear:
@@ -164,10 +201,18 @@ Note the use of units for distance quantities.  The =larf= supports a limited se
 This =solve= category simply aggregates two functional categories by naming a configuration section in each:
 
 - =boundary= :: names a "boundary" category configuration section
-- =gridding= :: names a "gridding" category configuration section
+- =raster= :: names a "raster" category configuration section
 
 *** Parameter category
 
-As mostly already described, the =params= configuration section category just holds key/value pairs evaluated at face value.  These can be useful if different =larf= command require sharing the same parameters.  For example both the =solve= and =plot= need to share gridding parameters.
+As mostly already described, the =params= configuration section category just holds key/value pairs evaluated at face value.  These can be useful if different =larf= command require sharing the same parameters.  For example both the =solve= and =plot= need to share raster parameters.
 
 
+
+** Command Line Parameters
+
+You may also specify general parameters to =larf= on the command line which may override those specified in the configuration file.
+
+#+BEGIN_SRC sh
+  $ larf -P foo=bar,baz=quax -P domain=11 [...]
+#+END_SRC
