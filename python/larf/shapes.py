@@ -25,10 +25,11 @@ Circle(2) = {2,5,3};
 Circle(3) = {3,5,4};
 Circle(4) = {4,5,1};
 
-Extrude{0,0,length}{ Line{-1,-2,-3,-4}; }
+Extrude{{0,0,length}, {0,0,1}, {0,0,0}, 2*Pi}{ Line{-1,-2,-3,-4}; }
 
 Mesh.Algorithm = 6;
 '''
+    #print geostr
     return geostr
 
 

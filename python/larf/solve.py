@@ -95,7 +95,9 @@ def load(filename):
                            
 
 def raster(grid, dirichlet_fun, neumann_fun, 
-             ngridx=150, ngridy=150, xrange=(-50,50), yrange=(-50,50), sliceaxis=1):
+             ngridx=150, ngridy=150, xrange=(-50,50), yrange=(-50,50), sliceaxis=1, **kwds):
+    if kwds:
+        print 'extra keywords: %s' % (', '.join(kwds.keys()))
 
     piecewise_const_space, piecewise_lin_space = spaces(grid)
 
