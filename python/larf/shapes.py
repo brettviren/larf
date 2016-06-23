@@ -1,11 +1,24 @@
 #!/usr/bin/envy python
 
 
-
+import math
 from units import mm, cm, um
 
+#     geostr += '''
+# Point(1) = { radius, 0, 0, lcar};
+# Point(2) = {0,  radius, 0, lcar};
+# Point(3) = {-radius, 0, 0, lcar};
+# Point(4) = {0, -radius, 0, lcar};
+# Point(5) = {0,0,0};
 
-def cylinder(length=10.0*mm, radius=1.0*mm, lcar=1.0*mm):
+# Circle(1) = {1,5,2};
+# Circle(2) = {2,5,3};
+# Circle(3) = {3,5,4};
+# Circle(4) = {4,5,1};
+# '''
+
+
+def cylinder(length=10.0*mm, radius=1.0*mm, lcar=1.0*mm, nsegments=6, **kwds):
 
     geostr = '''
 radius = {radius};
@@ -13,22 +26,24 @@ length = {length};
 lcar = {lcar};
 '''.format(**locals())
 
-    geostr += '''
-Point(1) = { radius, 0, 0, lcar};
-Point(2) = {0,  radius, 0, lcar};
-Point(3) = {-radius, 0, 0, lcar};
-Point(4) = {0, -radius, 0, lcar};
-Point(5) = {0,0,0};
+    angstep = 2*math.pi/nsegments
+    for iseg in range(nsegments):
+        ang = angstep * iseg
+        
+        geostr += 'Point(%d) = {radius*Cos(%f), radius*Sin(%f), 0, lcar};\n' % (iseg+1, ang, ang)
+        geostr += 'Printf("{iseg} {ang} cos=%f sin=%f", Cos({ang}), Sin({ang}));\n'.format(ang=ang, iseg=iseg+1)
+    icenter = nsegments+1
+    geostr += 'Point(%d) = {0,0,0};\n' % icenter
 
-Circle(1) = {1,5,2};
-Circle(2) = {2,5,3};
-Circle(3) = {3,5,4};
-Circle(4) = {4,5,1};
+    for iseg in range(nsegments):
+        icirc1 = iseg+1
+        icirc2 = (icirc1)%nsegments+1
+        geostr += 'Circle(%d) = {%d, %d, %d};\n' % (icirc1, icirc1, icenter, icirc2)
+        
+    linenums = ','.join(["-%d" % (x+1,) for x in range(nsegments)])
+    geostr += 'Extrude{{0,0,length}, {0,0,1}, {0,0,0}, 2*Pi}{ Line{%s}; }\n' % linenums
+    geostr += 'Mesh.Algorithm = 6;\n'
 
-Extrude{{0,0,length}, {0,0,1}, {0,0,0}, 2*Pi}{ Line{-1,-2,-3,-4}; }
-
-Mesh.Algorithm = 6;
-'''
     #print geostr
     return geostr
 

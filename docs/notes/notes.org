@@ -1,0 +1,32 @@
+* problems
+
+** Gaussian quadrature
+
+BEM++ [[https://en.wikipedia.org/wiki/Gaussian_quadrature][Gaussian quadrature]] rule to do the boundary integrals.  The
+precision of this is governed by how many points on any pair of
+triangles are evaluated.  The [[http://www.bempp.org/quadrature.html][table in the BEM++ docs]] gives default
+values and how to change them.  Of particular note is that the number
+of evaluations can be set at three length scales
+
+The effect of having the number of evaluations too low can be seen by
+looking at the solved potential near by a boundary.  It manifests as
+square boundaries of different sizes where the solution has small but
+clear discontinuities.
+
+To show this problem, a simple capacitor geometry is made:
+
+[[./capacitor-mini-special.png]]
+
+It has +/- 5000V applied.  Using the nominal number of evaluations
+gives the potential:
+
+[[./capacitor-mini-drift-special-default-gaussian.pdf]]
+
+Quadrupling the near, medium and far orders gives a potential:
+
+[[./capacitor-mini-drift-special.pdf]]
+
+Some discontinuities can still be seen but they are clearly reduced.
+The mesh has 4240 elements and 2124 vertices.  
+The calculation time increased by factor of approximately 5.
+

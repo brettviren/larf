@@ -9,8 +9,8 @@ def get_method(dotname):
     mod = importlib.import_module(modname)
     return getattr(mod, methname)
 
-def listify(string):
-    return [x for x in re.split('[, ]', string) if x]
+def listify(string, delim=', '):
+    return [x for x in re.split('['+delim+']', string) if x]
 
 
 

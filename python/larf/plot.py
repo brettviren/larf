@@ -1,3 +1,7 @@
+'''The plot methods take a dictionary of arrays and an optional
+output file and sum number of method-dependent keyword arguments.
+'''
+
 from larf.units import mm
 import numpy as np
 import matplotlib
@@ -6,15 +10,32 @@ from matplotlib import pyplot as plt
 from mayavi import mlab
 import numpy.ma as ma
 
+def mgrid_extent(mgrid):
+    xmin = mgrid[0][0][0]
+    xmax = mgrid[0][-1][-1]
+    ymin = mgrid[1][0][0]
+    ymax = mgrid[1][-1][-1]
+    return (xmin,xmax,ymin,ymax)
+
 # http://matplotlib.org/users/colormaps.html
-def slice(arr, outfile, title="BEM Calculation (potential)", ngridx=150, ngridy=150, xrange=(50,50), yrange=(50,50), limits=None, cmap='spectral', **kwds):
+def slice(arrs, outfile, name=None, title=None, 
+          limits=None, cmap='spectral', **kwds):
     
+    if not name:
+        raise ValueError('No name provided for slice plot')
+
+    if not title:
+        title = "BEM Calculation (potential)"
+
     # Plot the image
     matplotlib.rcParams['figure.figsize'] = (5.0, 4.0) # Adjust the figure size in IPython
-    toplot = arr.T
+    toplot = arrs[name]
     if kwds.get('log',False):
         toplot = np.log10(np.abs(toplot))
-    plt.imshow(toplot, extent=(xrange[0],xrange[1], yrange[0],yrange[1]), origin='lower')
+
+    mgrid = arrs[name+'_mgrid']
+    plt.imshow(toplot, extent=mgrid_extent(mgrid), origin='lower')
+
     if limits:
         plt.clim(*limits)
     if cmap:
@@ -31,7 +52,7 @@ def gradmag(arr, outfile, title="BEM Calculation (gradmag)", ngridx=150, ngridy=
     x_distperpix = (xrange[1]-xrange[0])/ngridx
     y_distperpix = (yrange[1]-yrange[0])/ngridy
 
-    gr = np.gradient(arr.T)
+    gr = np.gradient(arr)
     emag = np.sqrt(np.power(x_distperpix*gr[0],2) + np.power(y_distperpix*gr[1],2))
 
     if kwds.get('log',False):
@@ -45,20 +66,32 @@ def gradmag(arr, outfile, title="BEM Calculation (gradmag)", ngridx=150, ngridy=
 
 
 
+#def slice(arrs, outfile, name=None, title=None, 
+#          limits=None, cmap='spectral', **kwds):
 
 
-def field2d(potential, outfile=None, title="BEM Calculation (field)", cmap="spectral", limits=(-300,300),
-            show_magnitude = True,
-            extent=((-4*mm,4*mm), (-4*mm,4*mm))):
+def field2d(arrs, outfile=None, name=None, title=None, cmap="spectral", limits=(-300,300),
+            background = 'potential', every=10, dofield=True, **kwds):
 
+    if not name:
+        raise ValueError('field2d plot needs a name')
+    if not title:
+        title = "BEM Calculation (field)"
+
+    potential = arrs[name]
     nx,ny = potential.shape
-    xextent,yextent = extent
-    y,x = np.mgrid[xextent[0]:xextent[1]:nx*1j , yextent[0]:yextent[1]:ny*1j]
 
-    gy, gx = np.gradient(potential)
+    mgrid = arrs[name+'_mgrid']
+    extent = mgrid_extent(mgrid)
+
+    dx = (extent[1]-extent[0]) / nx
+    dy = (extent[3]-extent[2]) / ny
+
+    x,y = mgrid
+    gx, gy = np.gradient(potential, dx, dy)
     mag = ma.array(np.sqrt(gx**2 + gy**2))
 
-    max_mag = 4.0
+    max_mag = 5.0 / (0.5*(dx+dy))
     mag = ma.masked_where(mag > max_mag, mag)
     x = ma.array(x, mask=mag.mask)
     y = ma.array(y, mask=mag.mask)
@@ -67,26 +100,26 @@ def field2d(potential, outfile=None, title="BEM Calculation (field)", cmap="spec
     
     plt.title(title)
     bkg = potential
-    if show_magnitude:
+    if background == 'gradient':
         bkg = mag
-    pot = plt.imshow(bkg, cmap=cmap,
-                     extent = xextent+yextent, origin='lower')
+    #pot = plt.contourf(x, y, bkg, cmap=cmap)
+    pot = plt.pcolormesh(x, y, bkg, cmap=cmap)
     if limits:
-        if show_magnitude:
+        if background== 'gradient':
             plt.clim(0,max_mag)
         else:
             plt.clim(*limits)
     plt.colorbar()
 
-    every = 10
-    obj = plt.quiver(x[::every, ::every],
-                     y[::every, ::every],
-                     gx[::every, ::every],
-                     gy[::every, ::every],
-                     pivot='mid')
+    if dofield:
+        obj = plt.quiver(x[::every, ::every],
+                         y[::every, ::every],
+                         gx[::every, ::every],
+                         gy[::every, ::every],
+                         pivot='mid')
     if outfile:
         plt.savefig(outfile)
-    return obj
+    return
 
 def field(potential, outfile=None, title="BEM Calculation (field)", cmap="spectral"):
     u,v,w = np.gradient(potential)

@@ -7,13 +7,6 @@ def cpa(dx=1*mm, dy=20*cm, dz=20*cm, offsetx=0, lcar=None, **kwds):
     """Return a list of larf.mesh.Objects consisting of a single box of
     given half-dimensions."""
 
-    if kwds:
-        print ('parallel: unexpected parameters: %s' % (', '.join(kwds.keys()), ))
-
-    dx = unitify(dx)
-    dy = unitify(dy)
-    dz = unitify(dz)
-    lcar = unitify(lcar)
     if lcar is None:
         lcar = 0.5*max(dx,dy,dz)
 

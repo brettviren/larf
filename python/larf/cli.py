@@ -10,13 +10,13 @@ import numpy
               help='Set key=value overriding any from the configuration file')
 @click.pass_context
 def cli(ctx, config, param):
-    from larf.util import listify
+    from larf.util import listify, unit_eval
 
     params = dict()
-    for p in listify(' '.join(param)):
+    for p in listify(' '.join(param), delim=': '):
         k,v = p.split('=')
         params[k] = v
-    ctx.obj['params'] = params
+    ctx.obj['params'] = unit_eval(params)
 
     import larf.config
     if config:
@@ -168,6 +168,39 @@ def meshstats(meshfile):
     msg += " %d unique domains" % ndomains
     click.echo(msg)
 
+@cli.command()
+@click.argument('npzfile')
+def npzstats(npzfile):
+    dat = numpy.load(npzfile).items()
+    dat = {k:v for k,v in dat}
+    click.echo('%d arrays in %s' % (len(dat.keys()), npzfile))
+    for k,v in sorted(dat.items()):
+        click.echo('\t%s: %s' % (k, v.shape))
+
+
+@cli.command()
+def bemppdump():
+    import bempp.api
+    q = bempp.api.global_parameters.quadrature
+    print 'double_single', q.double_singular
+    for dist in ['near','medium','far']:
+        nmf = getattr(q,dist)
+        print dist
+        for name in ['max_rel_dist','single_order','double_order']:
+            thing = getattr(nmf, name, 'n/a')
+            print '\t%s = %s' % (name, thing)
+    
+
+def set_gaussian_quadrature(near=4, medium=3, far=2):
+    import bempp.api
+    q = bempp.api.global_parameters.quadrature
+    q.near.single_order = near
+    q.near.double_order = near
+    q.medium.single_order = medium
+    q.medium.double_order = medium
+    q.far.single_order = far
+    q.far.double_order = far
+
 
 @cli.command()
 @click.option('-o','--output', required=True, help='Set output file')
@@ -182,6 +215,7 @@ def solve(ctx, output, domain, potential, meshfile):
     import larf.config
     import larf.util
 
+    #set_gaussian_quadrature(16,12,4)
 
     if output.rsplit('.',1)[1] not in ['npz']:
         raise click.ClickException("Unknown data format for file %s" % output)
@@ -238,40 +272,44 @@ def raster(ctx, output, raster, solutionfile):
     import larf.solve
     import larf.config
 
+    #set_gaussian_quadrature(16,12,4)
+
     grid, dfun, nfun = larf.solve.load(solutionfile)
 
     cfg = ctx.obj['cfg']
     grid_tocall = larf.config.methods_params(cfg, 'raster %s' % raster)
 
-    arrays = list()
+    arrays = dict()
     for gmeth, gparams in grid_tocall:
-        arr = gmeth(grid, dfun, nfun,**gparams)
-        arrays.append(arr)
+        arrs = gmeth(grid, dfun, nfun,**gparams)
+        arrays.update(arrs)
         
     if output.endswith('.npz'):
-        numpy.savez(output, *arrays)
+        numpy.savez(output, **arrays)
 
 
 @cli.command()
 @click.option('-o','--outfile', help='Set output file name')
-@click.option('-a','--array', help='Set array name')
 @click.option('-p','--plot', help='Set plot type from config file')
 @click.option('-f','--function', help='Set Python dotted path to function', multiple=True)
+@click.option('-t','--title', help='Set a title', default=None)
+@click.option('-n','--name', help='Set a name', default=None)
 @click.argument('filename')
 @click.pass_context
-def plot(ctx, outfile, array, plot, filename, function):
+def plot(ctx, outfile, plot, filename, function, title, name):
     cfg = ctx.obj['cfg']
 
     # get array from file
-    dat = {k:v for k,v in numpy.load(filename).items()}
-    arr = dat[array]
-    
+    arrays = {k:v for k,v in numpy.load(filename).items()}
 
     import larf.config
     tocall = larf.config.methods_params(cfg, 'plot %s' % plot, methods=','.join(function))
 
+    cmdline_params = ctx.obj['params']
+
     for meth, params in tocall:
-        meth(arr, outfile, **params)
+        params.update(cmdline_params)
+        meth(arrays, outfile, title=title, name=name, **params)
 
 
 def main():
