@@ -1,4 +1,33 @@
-* problems
+* Stepping
+
+** Induced Current
+
+The current in electrode $k$ is
+
+$i_k = q \times (\vec{E}_{weight,k} \cdot \vec{v})$
+
+with
+
+$\vec{v} = \mu \times \vec{E}_{drift}$
+
+And $\mu$ as given in [[http://arxiv.org/abs/1508.07059][arXiv:1508.07059]] or interactively at the [[http://lar.bnl.gov/properties/#e-trans][BNL LAr properties web site]].
+The $\mu$ parameter is a function of the magnitude of $\vec{E}_{drift}$ and temperature.
+Some care of the units are needed.  The mobility formula takes $E$ in units of kV/cm and returns $\mu$ in units of $cm^2/s/V$.
+
+The instantaneous current in electrode $k$ at time $t$ due to charge $q$ at position $\vec{r}$ is then purely a function of the fields:
+
+$i_{k,q}(t) = q \times \mu(E_{drift}) \times (\vec{E}_{weight,k} \cdot \vec{E}_{drift})$
+
+Where the E-fields implicitly functions of $\vec{r}(t)$ of the drifting charge.
+The total instantaneous current on electrode $k$ is then
+
+$i_k(t) = \sum_q i_{k,q}(t)$
+
+** Trajectories
+
+Absent diffusion a charge produced at a given starting point will always take the same trajectory through the a static drift field and thus produce a fixed contribution to the induced charge on any electrode.  Any given drift trajectory can be decomposed by considering it a prepending of an initial step onto the trajectory that starts at the termination of this initial step.
+
+* Problems Encountered
 
 ** Gaussian quadrature
 

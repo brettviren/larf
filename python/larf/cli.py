@@ -204,13 +204,11 @@ def set_gaussian_quadrature(near=4, medium=3, far=2):
 
 @cli.command()
 @click.option('-o','--output', required=True, help='Set output file')
-@click.option('-d','--domain', default=0,
-              help='Set the mesh domain number for one electrode for which a weighting field is calculated.')
 @click.option('-p','--potential',  default='larf.potentials.weighting',
               help='Set the boundary potential to solve (mod.meth or cfg section)')
 @click.argument('meshfile')
 @click.pass_context
-def solve(ctx, output, domain, potential, meshfile):
+def solve(ctx, output, potential, meshfile):
     import larf.solve
     import larf.config
     import larf.util
@@ -229,7 +227,7 @@ def solve(ctx, output, domain, potential, meshfile):
         tocall = larf.config.methods_params(cfg, 'potential %s' % potential)
         potential_class, potential_params = tocall[0]
 
-    potential_params.update(domain=int(domain))
+    potential_params.update(**ctx.obj['params'])
     dirichlet_data = potential_class(**potential_params)
 
     grid = load_meshfile(meshfile)
