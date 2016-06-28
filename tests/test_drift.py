@@ -64,7 +64,7 @@ def test_gradient_resample():
     ax.quiver(PX, PY, fine[0], fine[1])
     return fig,ax
 
-def test_step():
+def test_step_rk4():
     xlin, ylin = np.linspace(-4,4,21), np.linspace(-2,2,21)
     px, py = np.meshgrid(xlin, ylin, indexing='ij')
     pot = px * np.exp(-px**2 - py**2)
@@ -76,18 +76,27 @@ def test_step():
     points = list()
     point = np.asarray([-0.5,1.0])
     tnow = 0.0
-    dt = 1
+    dx = .1
+    stuck = 0.001
     for count in range(1000):
         points.append(point)
         v = velo(point)
+        vmag = math.sqrt(v[0]**2 + v[1]**2)
+        dt = dx/vmag
         try:
-            pnext = drift.step_rk4(point, tnow, tnow+dt, velocity)
+            pnext,_ = drift.step_rk4(point, tnow, tnow+dt, velocity)
         except ValueError:
             print 'last point: %s' % str(pnext)
             break
-        #print "%f: %s --> %s @ %s" % (tnow, point, pnext, v)
+        step = pnext - point
+        dist = math.sqrt(step[0]**2 + step[1]**2)
+        if dist < stuck:
+            print 'stuck/stopped %f at %s' % (dist, str(point))
+            break;
+        #print "%f: step=%f %s --> %s @ %s" % (tnow, dist, point, pnext, v)
         tnow += dt
         point = pnext
+    print '%d steps' % len(points)
 
     ptsX, ptsY = np.vstack(points).T
 
@@ -97,6 +106,55 @@ def test_step():
     ax.quiver(px, py, velo.components[0], velo.components[1])
     ax.scatter(ptsX, ptsY)
     
+
+def test_step_rkck():
+    xlin, ylin = np.linspace(-4,4,21), np.linspace(-2,2,21)
+    px, py = np.meshgrid(xlin, ylin, indexing='ij')
+    pot = px * np.exp(-px**2 - py**2)
+    velo = drift.Gradient(pot, (xlin, ylin))
+    
+    def velocity(r, t):
+        return velo(r)
+
+    points = list()
+    point = np.asarray([-0.5,1.0])
+    tnow = 0.0
+    prec = 0.01
+    vmag = math.sqrt(point[0]**2 + point[1]**2)
+    dx = .1
+    dt = dx/vmag
+    maxdt = 10*dt
+    stuck = 0.001
+    for count in range(1000):
+        points.append(point)
+        v = velo(point)
+        try:
+            pnext,error = drift.step_rkck(point, tnow, tnow+dt, velocity)
+        except ValueError:
+            print 'last point: %s' % str(pnext)
+            break
+
+        maxerr = np.max(np.abs(error))
+        dt *= prec/maxerr
+        dt = min(dt, maxdt)
+        #print 'err=%f newdt=%f' % (maxerr, dt)
+        step = pnext - point
+        dist = math.sqrt(step[0]**2 + step[1]**2)
+        if dist < stuck:
+            print 'stuck/stopped %f at %s' % (dist, str(point))
+            break;
+        #print "%f: step=%f %s --> %s @ %s" % (tnow, dist, point, pnext, v)
+        tnow += dt
+        point = pnext
+    print '%d steps' % len(points)
+
+    ptsX, ptsY = np.vstack(points).T
+
+    fig,ax = plt.subplots()
+    im = ax.pcolor(px, py, pot)
+    fig.colorbar(im)
+    ax.quiver(px, py, velo.components[0], velo.components[1])
+    ax.scatter(ptsX, ptsY)
 
 def plot_pot(pot, r, figax=None):
     if not figax:
