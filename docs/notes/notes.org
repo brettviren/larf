@@ -25,7 +25,7 @@ $i_k(t) = \sum_q i_{k,q}(t)$
 
 ** Trajectories
 
-Absent diffusion a charge produced at a given starting point will always take the same trajectory through the a static drift field and thus produce a fixed contribution to the induced charge on any electrode.  Any given drift trajectory can be decomposed by considering it a prepending of an initial step onto the trajectory that starts at the termination of this initial step.
+*Absent diffusion* a charge produced at a given starting point will always take the same trajectory through the a static drift field and thus produce a fixed contribution to the induced current on any given electrode.  
 
 * Problems Encountered
 
