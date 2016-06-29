@@ -86,6 +86,23 @@
   \end{columns}
 \end{frame}
 
+\begin{frame}
+  \frametitle{Stepping}
+  Evolution of position $\vec{r}_k \equiv \vec{r}(t_k)$ from step $k$ to $k+1$:
+  \begin{center}
+    $\vec{r}_k \rightarrow \vec{r}_{k+1} = \vec{r}_k + \vec{v}(\vec{r}_k) \times \Delta t_k$
+  \end{center}
+  Use \textbf{Adaptive Runge-Kutta + Cash/Karp} ($\sim 5^{th}$ order)
+  \begin{itemize}
+  \item From Numerical Recipes
+  \item Take two different 6th order steps.
+  \item Distance between each estimates error.
+  \item Adjust $\Delta t_{k+1}$ based on error
+  \item Hugely more efficient than simple RK4
+  \item Must still watch for stepping to get stuck at maximum.
+  \end{itemize}
+\end{frame}
+
 \section{Geometries}
 
 \begin{frame}{Status of Field Calculations}
@@ -235,7 +252,7 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{Some Issues - Mesh Granularity}
+  \frametitle{Problem: Mesh Granularity}
 
   \vspace{-5mm}
 
@@ -287,28 +304,105 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{An Initial E-Field Calculation}
+  \frametitle{Mitigation: better mesh modeling}
   \begin{columns}
     \begin{column}{0.5\textwidth}
       \begin{center}
-        \includegraphics[height=0.6\textheight]{uboone-drift-field-pot-tight.pdf}
+        \includegraphics[height=0.6\textheight]{better-wire-cross-section.png}
 
-        \scriptsize E-field lines on top of potential.
+        \scriptsize Wire cross section.
       \end{center}
     \end{column}
     \begin{column}{0.5\textwidth}
       \begin{center}
-        \includegraphics[height=0.6\textheight]{uboone-drift-field-tight.pdf}
+        \includegraphics[height=0.6\textheight]{better-wire-isometric.png}
 
-        \scriptsize E-field lines on top of $\left|\vec{E}\right|$.
+        \scriptsize Wire side view.
       \end{center}
     \end{column}
   \end{columns}
-  
   \begin{itemize}
-  \item Trade-off between mesh granularity and CPU time.
+  \item Increase number of circular segments
+  \item Rotate circle through wire extrusion.
   \end{itemize}
 \end{frame}
+
+\begin{frame}
+  \frametitle{An Initial E-Field Calculation}
+  \begin{center}
+    \includegraphics[height=0.6\textheight]{uboone-drift-field-pot-tight.pdf}
+    
+    \scriptsize E-field lines on top of potential.
+  \end{center}
+  
+  \begin{itemize}
+  \item This still uses the coarse wire mesh.
+  \item Hint of a problem in some of the field lines
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Problem: Field Artifacts}
+  \begin{center}
+    \includegraphics[height=0.6\textheight]{uboone-drift-field-tight.pdf}
+    
+    \scriptsize E-field lines on top of $\left|\vec{E}\right|$.
+  \end{center}
+  
+  \begin{itemize}
+  \item More sensitive color scale shows clear artifacts at
+    ``special'' values of the domain.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Setup to look at artifacts}
+  \begin{center}
+    \includegraphics[width=0.5\textwidth]{capacitor-mini-special.png}    
+  \end{center}
+  Construct simple asymmetric capacitor and focus on the end of the
+  little electrode.
+\end{frame}
+\begin{frame}
+  \frametitle{Source of artifacts found}
+  \footnotesize
+  \begin{columns}
+    \begin{column}{0.5\textwidth}
+      \begin{center}
+        \includegraphics[width=\textwidth]{capacitor-mini-drift-special-default-gaussian.pdf}
+
+        Nominal BEM precision.
+      \end{center}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \begin{center}
+        \includegraphics[width=\textwidth]{capacitor-mini-drift-special.pdf}
+
+        Quadrupled BEM precision.
+      \end{center}
+    \end{column}
+  \end{columns}
+  \begin{itemize}
+  \item BEM integrals evaluates potentials at points on pairs of triangles.
+  \item Number of points determines precision
+  \item BEM++ defines precision on 3 inter-triangle distance scales.
+  \end{itemize}
+\end{frame}
+\section{Stepping}
+
+\begin{frame}
+  \frametitle{Intial Stepping Tests}
+  \begin{center}
+    \includegraphics[width=0.8\textwidth]{initial_stepping_test2.pdf}    
+  \end{center}
+
+  \scriptsize
+  This is a made up ``velocity potential''.  Arrows show local
+  velocity.  Circles are steps with time as color and step distance as
+  area.
+
+\end{frame}
+
 
 
 \section{Software}

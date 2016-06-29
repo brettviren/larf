@@ -70,7 +70,7 @@ def test_step_rk4():
     pot = px * np.exp(-px**2 - py**2)
     velo = drift.Gradient(pot, (xlin, ylin))
     
-    def velocity(r, t):
+    def velocity(t, r):
         return velo(r)
 
     points = list()
@@ -113,7 +113,7 @@ def test_step_rkck():
     pot = px * np.exp(-px**2 - py**2)
     velo = drift.Gradient(pot, (xlin, ylin))
     
-    def velocity(r, t):
+    def velocity(t, r):
         return velo(r)
 
     points = list()
@@ -124,29 +124,43 @@ def test_step_rkck():
     dx = .1
     dt = dx/vmag
     maxdt = 10*dt
+    maxrat = 2.0
     stuck = 0.001
+    times = list()
+    errors = list()
+    stepsizes = list()
+    steptimes = list()
     for count in range(1000):
         points.append(point)
+        times.append(tnow)
+        steptimes.append(dt)
         v = velo(point)
         try:
             pnext,error = drift.step_rkck(point, tnow, tnow+dt, velocity)
         except ValueError:
             print 'last point: %s' % str(pnext)
             break
+        tnow += dt              # update for next time
 
+        # pick dt to contain precision
         maxerr = np.max(np.abs(error))
-        dt *= prec/maxerr
-        dt = min(dt, maxdt)
-        #print 'err=%f newdt=%f' % (maxerr, dt)
+        errors.append(maxerr)
+        dt *= min(maxrat, prec/maxerr)
+        #dt = min(dt, maxdt)
+
+        # check for stuckness
         step = pnext - point
         dist = math.sqrt(step[0]**2 + step[1]**2)
+        stepsizes.append(dist)
         if dist < stuck:
             print 'stuck/stopped %f at %s' % (dist, str(point))
             break;
         #print "%f: step=%f %s --> %s @ %s" % (tnow, dist, point, pnext, v)
-        tnow += dt
         point = pnext
     print '%d steps' % len(points)
+    print 'stepsizes:',stepsizes
+    print 'steptimes:',steptimes
+    print 'errors:',errors
 
     ptsX, ptsY = np.vstack(points).T
 
@@ -154,7 +168,7 @@ def test_step_rkck():
     im = ax.pcolor(px, py, pot)
     fig.colorbar(im)
     ax.quiver(px, py, velo.components[0], velo.components[1])
-    ax.scatter(ptsX, ptsY)
+    ax.scatter(ptsX, ptsY, s = 100*np.asarray(stepsizes), c = np.asarray(times), alpha=0.5)
 
 def plot_pot(pot, r, figax=None):
     if not figax:
