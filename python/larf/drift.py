@@ -247,6 +247,8 @@ class BoundPrecision(object):
         @type prec: float
 
         @param maxrelval: maximum allowed correction
+        @type maxrelval: float
+
         '''
         self.prec = prec
         self.maxrat = maxrelval
@@ -262,6 +264,9 @@ class BoundPrecision(object):
         @param error: error, eg as vector displacement between two
             attempted steps to the same place.
         @type error: N-array
+        @return: correction as ratio of current step size
+        @rtype: float
+
         '''
         rel = self.prec/numpy.max(numpy.abs(error))
         rel = math.pow(rel, 0.2) # adaptive runge-kutta magic
@@ -316,6 +321,30 @@ class CollectSteps(object):
         self.stuck = stuck
 
     def __call__(self, t1, r1, t2, r2, error):
+        '''
+        Collect one step.
+
+        @param t1: the time at the beginning of the step
+        @type t1: float
+
+        @param r1: the position at the beginning of the step
+        @type r1: N-array
+
+        @param t2: the time at the end of the step
+        @type t2: float
+
+        @param r2: the position at the end of the step
+        @type r2: N-array
+
+        @param error: and estimate of the error made in the step as a displacement vector
+        @type error: N-array
+
+        @return: a duration to use for the subsequent step
+        @rtype: float
+
+        @raise StopIteration: if step indicates the stepping is stuck as per the stuck callable
+
+        '''
         self.steps.append(self.Step(t1,r1,t2,r2,error))
         if self.stuck(t1,r1,t2,r2):
             raise StopIteration
@@ -325,21 +354,33 @@ class CollectSteps(object):
 
     @property
     def points(self):
-        'The N+1 step points'
+        '''
+        The N+1 step points.
+
+        @type: list of N-array
+        '''
         p = [s.r1 for s in self.steps]
         p.append(self.steps[-1].r2)
         return p
 
     @property
     def times(self):
-        'The N+1 step times'
+        '''
+        The N+1 step times.
+
+        @type: list of float
+        '''
         t = [s.t1 for s in self.steps]
         t.append(self.steps[-1].t2)
         return t
 
     @property
     def distance(self):
-        'N distances between step k and k+1'
+        '''
+        N distances between step k and k+1.
+
+        @type: list of float
+        '''
         ret = list()
         for s in self.steps:
             diff = s.r2 - s.r1
@@ -362,15 +403,19 @@ def StepperParams(params, **defaults):
 
     Not all keyword arguments are used by all steppings.
 
-    @param maxiter: maximum number of steps to take (default:100)
+    @keyword maxiter: maximum number of steps to take (default:100)
     @type maxiter: int
 
-    @param dt: initial step in time (default:None - calculate from velocity and lcar)
+    @keyword dt: initial step in time (default:None - calculate from
+        velocity and lcar)
     @type dt: float [units of time]
 
-    @param lcar: characteristic length used to set initial time step
+    @keyword lcar: characteristic length used to set initial time step
         from initial velocity (default:None - rely on dt)
     @type lcar: float [units of distance]
+
+    @return: a namedtuple of keywords
+    @rtype: StepperParams namedtuple 
     '''
     p = dict(maxiter=100, dt = None, lcar = None,)
     p.update(**defaults)

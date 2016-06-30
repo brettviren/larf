@@ -168,3 +168,17 @@ class Scene(object):
                 domains = numpy.r_[domains, numpy.ones(ntris)*dom]
                 points_offset += len(obj.points)
         return dict(points=points, triangles=triangles, domains=domains)
+
+
+def result_to_grid(res):
+    '''
+    Return a BEM++ grid object made from the larf.model.Result
+    '''
+    arrs = {a.type:a.data for a in res.arrays}
+
+    fac = bem.GridFactory()
+    for p in arrs['points']:
+        fac.insert_vertex(p)
+    for t,d in zip(arrs['triangles'], arrs['domains']):
+        fac.insert_element(t,d)
+    return fac.finalize()

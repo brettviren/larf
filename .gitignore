@@ -29,3 +29,6 @@ auto
 notes.html
 notes.tex
 notes.pdf
+*.db
+*.sqlite
+*.sqlite3

@@ -1,3 +1,9 @@
+* Arrays
+
+Numpy arrays are used as intermediate data types.
+
+
+
 * Stepping
 
 ** Induced Current

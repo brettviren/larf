@@ -4,6 +4,8 @@
 
 *Note: this package is still a work in progress!*
 
+*Note: this documentation is still a mish mash and may not represent reality!*
+
 This package provides calculations which can be used to determine the field response of drifting charge in a LArTPC.  It does this by providing various calculations:
 
  - [ ] applied electrostatic drift field in 3D
@@ -216,3 +218,28 @@ You may also specify general parameters to =larf= on the command line which may 
 #+BEGIN_SRC sh
   $ larf -P foo=bar,baz=quax -P domain=11 [...]
 #+END_SRC
+
+* Files
+
+Various =larf= commands consume and produce Numpy arrays stored in =.npz= files.  This graph tries to collect some of this.
+
+[[./steps.png]]
+
+(note: may not actually be right)
+
+** Array names
+
+To support arrays from multiple steps and different solutions solutions the arrays encode metadata as:
+
+#+BEGIN_EXAMPLE
+<name>_<step>_<type>
+#+END_EXAMPLE
+
+Where each label identifies:
+
+- =name= :: an external configuration set by user or =larf= by default,
+- =step= :: the step that produced the array,
+- =type= :: a category for the array.
+
+The =name= may be free form except it must consist of only alphanumeric characters (and no underscore "=_=").
+

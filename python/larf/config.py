@@ -30,7 +30,7 @@ def methods_params(cfg, section, methods=None, recurse_key = None, **kwds):
 
     # methods directly passed in or given in config
     methods = methods or sec.pop('methods', '')
-    meths = [get_method(m) for m in listify(methods)]
+    meths = listify(methods)
     extra = sec.pop('params','')
     for pname in listify(extra):
         psec = cfg['params %s' % pname]
