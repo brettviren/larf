@@ -63,12 +63,12 @@ def dump_grid(g):
         print ('\t%d: %d %s' % (ind, g.leaf_view.entity_count(ind), thing))
 
 
-@cli.command()
-@click.option('-s','--section',
+@cli.command("mesh")
+@click.option('-m','--mesh',
               help='Set "mesh" section in the configuration file to use.')
 @click.argument('name')
 @click.pass_context
-def mesh(ctx, section, name):
+def cmd_mesh(ctx, mesh, name):
     '''
     Produce a mesh.
 
@@ -79,12 +79,12 @@ def mesh(ctx, section, name):
     import larf.store
     from larf.models import Array, Result
 
-    if not section:
-        section = name
+    if not mesh:
+        mesh = name
 
     cfg = ctx.obj['cfg']        
 
-    tocall = larf.config.methods_params(cfg, 'mesh %s' % section, recurse_key = 'meshes')
+    tocall = larf.config.methods_params(cfg, 'mesh %s' % mesh, recurse_key = 'meshes')
 
     calls = list()
     molist = list()
@@ -111,161 +111,159 @@ def mesh(ctx, section, name):
     ses = ctx.obj['session']
     ses.add(res)
     ses.flush()
-    click.echo("produced mesh #%d" % res.id)
+    click.echo("produced mesh result #%d" % res.id)
     ses.commit()
 
-@cli.command()
+@cli.command("list")
 @click.pass_context
-def results(ctx):
+def cmd_list(ctx):
     '''
     List accumulated results.
+
+    @todo: add different verbosity, filters.
     '''
     from larf.models import Result
     ses = ctx.obj['session']
+    # fixme: might be nice to make this spaced out prettier
     for res in ses.query(Result).all():
-        arrstr = ','.join(["%s(%d)" % (a.name, len(a.data)) for a in res.arrays])
-        print '%d %s type:%s name:%s arrays:%s' % (res.id, res.created, res.type, res.name, arrstr)
+        arrstr = ','.join(["%s%s" % (a.name, str(a.data.shape)) for a in res.arrays])
+        print '%d %s type:%-10s name:%-12s arrays:%s' % (res.id, res.created, res.type, res.name, arrstr)
 
 @cli.command("export")
 @click.option('-o','--output', help='Set output file.')
-@click.argument('id', type=int)
+@click.argument('resultid', type=int)
 @click.pass_context
-def export_result(ctx, output, id):
+def cmd_export(ctx, output, resultid):
+    '''
+    Export a result to a file.
+    '''
     from larf.models import Result
     import larf.util
 
     ses = ctx.obj['session']
     kwd = ctx.obj['params']
 
-    res = ses.query(Result).filter_by(id = id).one()
+    res = ses.query(Result).filter_by(id = resultid).one()
     
     methname = 'larf.persist.dump_%s_%s' % (res.type, output.rsplit('.',1)[-1])
     meth = larf.util.get_method(methname)
     meth(res, output, **kwd)
 
 @cli.command("import")
+@click.argument('filename')
 @click.pass_context
-def import_result(ctx, output, id):
-    "not implemented"
-    click.echo("not implemented")
+def cmd_import(ctx, filename):
+    "not yet implemented"
+    click.echo("please implement me!")
     return
 
 
-    
 
-def set_gaussian_quadrature(near=4, medium=3, far=2):
-    import bempp.api
-    q = bempp.api.global_parameters.quadrature
-    q.near.single_order = near
-    q.near.double_order = near
-    q.medium.single_order = medium
-    q.medium.double_order = medium
-    q.far.single_order = far
-    q.far.double_order = far
-
-
-@cli.command()
-@click.option('-s', '--section',  
-              help='Set the "potential" section in the configuration file to use')
-@click.option('-m', '--meshid', required=True,
+@cli.command("boundary")
+@click.option('-b', '--boundary',  
+              help='Set the "boundary" section in the configuration file to use')
+@click.option('-m', '--mesh-id', required=True, type=int,
               help='Set the result ID of the mesh to use')
 @click.argument('name')
 @click.pass_context
-def solve(ctx, section, meshid, name):
+def cmd_boundary(ctx, boundary, mesh_id, name):
     '''
-    Solve surface potentials.
+    Solve surface boundary potentials.
     '''
-    #set_gaussian_quadrature(16,12,4)
-
     import larf.solve
+    #larf.solve.set_gaussian_quadrature(16,12,4)
+
     import larf.config
     import larf.util
+    import larf.mesh
     from larf.models import Result, Array
+
+    if not boundary:
+        boundary = name
+
+    ses = ctx.obj['session']
+    meshres = ses.query(Result).filter_by(id = mesh_id).one()
+    grid = larf.mesh.result_to_grid(meshres)
 
     cfg = ctx.obj['cfg']
     par = ctx.obj['params']
-    ses = ctx.obj['session']
 
-    if not section:
-        section = name
+    tocall = larf.config.methods_params(cfg, 'boundary %s' % boundary)
+    methname, methparams = tocall[0] # just first
+    methparams.update(**par)
+    meth = larf.util.get_method(methname)
 
-
-    meshres = ses.query(Result).filter_by(id = meshid).one()
-    grid = larf.mesh.result_to_grid(meshres)
-
-    tocall = larf.config.methods_params(cfg, 'potential %s' % section)
-    potential_class, potential_params = tocall[0]
-    potential_params.update(**par)
-    potential_callable = larf.util.get_method(potential_class)
-
-    dirichlet_data = potential_callable(**potential_params)
+    dirichlet_data = meth(**methparams)
 
     dfun, nfun = larf.solve.boundary_functions(grid, dirichlet_data)
 
-    res = Result(name=name, type='potential', parent=meshid,
-                 params=dict(method=potential_class, params=potential_params),
+    res = Result(name=name, type='boundary', parent=meshres,
+                 params=dict(method=methname, params=methparams),
                  arrays = [
                      Array(name='dirichlet', type='coefficients', data=dfun.coefficients),
                      Array(name='neumann', type='coefficients', data=nfun.coefficients),
                  ])
-
-
-                 
-    dump_grid(grid)
-    dump_fun(dfun)
-    dump_fun(nfun)
-
+    ses.add(res)
+    ses.flush()
+    click.echo("produced solution result #%d" % res.id)
+    ses.commit()
     return
 
-def dump_fun(fun):
-    print '%d coefficients' % len(fun.coefficients)
-
-@cli.command()
-@click.argument('solfile', type=click.Path())
-def solinfo(solfile):
-    '''
-    Show some information about a solution file.
-    '''
-    import larf.solve
-    grid, dfun, nfun = larf.solve.load(solfile)
-    dump_grid(grid)
-    dump_fun(dfun)
-    dump_fun(nfun)
-    msg = "load grid with"
-    for ind, thing in enumerate(codims):
-        msg += " %d %s" % (grid.leaf_view.entity_count(ind), thing)
-    ndomains = len(set(grid.leaf_view.domain_indices))
-    msg += " %d unique domains" % ndomains
-    click.echo(msg)
 
 
-@cli.command()
-@click.option('-o','--output', required=True, help='Set output file')
+@cli.command("raster")
 @click.option('-r','--raster',  
-              help='Set raster method (cfg section)')
-@click.argument('solutionfile', type=click.Path())
+              help='Set "raster" section in the configuration file to use.')
+@click.option('-b','--boundary-id', required=True, type=int,
+              help='Set the result ID of the boundary potential to use.')
+@click.argument('name')
 @click.pass_context
-def raster(ctx, output, raster, solutionfile):
+def cmd_raster(ctx, raster, boundary_id, name):
     '''
     Evaluate a solution on a grid of points.
     '''
     import larf.solve
     import larf.config
+    import larf.mesh
+    from larf.models import Result, Array
+    import bempp.api
 
-    #set_gaussian_quadrature(16,12,4)
+    if not raster:
+        raster = name
 
-    grid, dfun, nfun = larf.solve.load(solutionfile)
+    #larf.solve.set_gaussian_quadrature(16,12,4)
+    ses = ctx.obj['session']
 
+    potres = ses.query(Result).filter_by(id = boundary_id).one()
+    meshres = ses.query(Result).filter_by(id = potres.parent_id).one()
+    grid = larf.mesh.result_to_grid(meshres)
+
+    potarrs = potres.array_data_by_name()
+    dfun = bempp.api.GridFunction(grid, coefficients = potarrs['dirichlet'])
+    nfun = bempp.api.GridFunction(grid, coefficients = potarrs['neumann'])
+    
     cfg = ctx.obj['cfg']
-    grid_tocall = larf.config.methods_params(cfg, 'raster %s' % raster)
+    tocall = larf.config.methods_params(cfg, 'raster %s' % raster)
 
-    arrays = dict()
-    for gmeth, gparams in grid_tocall:
-        arrs = gmeth(grid, dfun, nfun,**gparams)
-        arrays.update(arrs)
-        
-    if output.endswith('.npz'):
-        numpy.savez(output, **arrays)
+    par = ctx.obj['params']
+    resids = list()
+    for methname, methparams in tocall:
+        meth = larf.util.get_method(methname)
+        methparams.update(**par)
+        arrays = meth(grid, dfun, nfun, **methparams)
+        res = Result(name=name, type='raster', parent=potres,
+                     params=dict(method=methname, params=methparams),
+                     arrays = [Array(name=nam, type='potential', data=arr) for nam,arr in arrays.items()])
+        ses.add(res)
+        ses.flush()
+        resids.append(res.id)
+
+    if resids:
+        ses.commit()
+        click.echo("produced raster results: %s" % (', '.join([str(i) for i in resids]), ))
+        return 1
+    click.echo("failed to produce any raster results")
+
 
 
 @cli.command()

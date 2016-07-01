@@ -61,6 +61,10 @@ class Result(Base):
     parent_id = Column(Integer, ForeignKey("results.id"))
     children = relationship("Result")
 
+    def array_data_by_type(self):
+        return {a.type:a.data for a in self.arrays}
+    def array_data_by_name(self):
+        return {a.name:a.data for a in self.arrays}
 
 
 class Array(Base):
@@ -74,3 +78,4 @@ class Array(Base):
     result_id = Column(Integer, ForeignKey("results.id"))
     result = relationship("Result", back_populates="arrays")
 
+        

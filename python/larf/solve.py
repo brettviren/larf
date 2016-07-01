@@ -82,3 +82,24 @@ def load(filename):
     neumann_fun = bempp.api.GridFunction(grid, coefficients = dat['neumann_coefficients'])
     return (grid, dirichlet_fun, neumann_fun)
                            
+
+
+def set_gaussian_quadrature(near=4, medium=3, far=2):
+    '''
+    Set the precision in the BEM++ Gaussian quadrature.
+
+    Solutions may have sub-domains where the potential is
+    discontinuous on their borders.  Increasing the near, medium or
+    far orders may help produce a more correct and smooth solution.
+
+    @todo: add setting of distance scales.
+    '''
+    import bempp.api
+    q = bempp.api.global_parameters.quadrature
+    q.near.single_order = near
+    q.near.double_order = near
+    q.medium.single_order = medium
+    q.medium.double_order = medium
+    q.far.single_order = far
+    q.far.double_order = far
+
