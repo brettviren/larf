@@ -56,14 +56,44 @@ If =dpkg= command will fail the subsequent =apt-get= will install missing depend
 
 * Running
 
-The calculation is run through the =larf= command line tool.  The calculation requires these steps:
+The calculation is run through the =larf= command line tool.  
+Any particular calculation is broken down into several steps.  
+A step produces a /result/ and consumes user-supplied parameters and possibly the /result/ of another step.
+A step retrieves and stores results in a database ([[./python/larf/models.py]] for exact schema).
+
+An example which performs these steps:
 
 1. Generate a mesh for electrode surfaces.
-2. Solve the Laplace equation for given boundary conditions.
-3. Evaluate solution at some set of points in the volume.
-4. Plot or otherwise use the results.
+2. Solve integral of Laplace equation at boundary
+3. Evaluate solution for electrostatic potential at points in the volume.
+4. Calculate drift velocity
 
-The result of each step can (and should) be saved for use as input for the subsequent step.  Each step is described further in the following sections.
+#+BEGIN_EXAMPLE
+  $ rm -f larf.db
+  $ larf mesh capacitor
+  $ larf boundary -m 1 capdrift
+  $ larf raster -b 2 special
+  $ larf velocity -r 3 special
+  $ larf list
+
+  result:1 parent:0 2016-07-01 15:30:57.367264 type:mesh       name:capacitor   
+    array:1 type:domains      name:domains      dtype:float64  shape:(4240,)
+    array:2 type:points       name:points       dtype:float64  shape:(2124, 3)
+    array:3 type:triangles    name:triangles    dtype:int64    shape:(4240, 3)
+
+  result:2 parent:1 2016-07-01 15:31:24.955436 type:boundary   name:capdrift    
+    array:4 type:coeff        name:dirichlet    dtype:float64  shape:(2124,)
+    array:5 type:coeff        name:neumann      dtype:float64  shape:(4240,)
+
+  result:3 parent:2 2016-07-01 15:32:34.170297 type:raster     name:special     
+    array:6 type:gscalar      name:potential    dtype:float64  shape:(40, 3, 40)
+    array:7 type:mgrid        name:domain       dtype:float64  shape:(3, 40, 3, 40)
+
+  result:4 parent:3 2016-07-01 15:34:08.496289 type:velocity   name:special     
+    array:8 type:mgrid        name:domain       dtype:float64  shape:(3, 40, 3, 40)
+    array:9 type:gvector      name:velocity     dtype:float64  shape:(3, 40, 3, 40)
+#+END_EXAMPLE
+
 
 ** Mesh
 

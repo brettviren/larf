@@ -48,7 +48,7 @@ lcar = {lcar};
     return geostr
 
 
-def box(dx=1*mm, dy=20*cm, dz=20*cm, lcar=1.0*mm):
+def box(dx=1*mm, dy=20*cm, dz=20*cm, lcar=1.0*mm, **kwds):
     """Return a GMSH geo string for a box of half-lengths dx,dy,dz.  Box is
     centered at 0,0,0
     """

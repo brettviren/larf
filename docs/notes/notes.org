@@ -1,8 +1,36 @@
+* Stepping code
+
+What does it mean to step?
+
+- a spatial domain defined on some discrete space (from a previous result)
+- a potential defined on this domain (from a previous result)
+- a velocity field derived from this potential (method+params)
+- a stepping procedure (method+params)
+- a function evaluated on each step (method+params+previous result)
+
+** velocity field
+
+The real velocity field is $\mu*\vec{E}_{drift}$ with $\mu$ a function
+of the mag of the Efield.  Efield comes from the potential computed in
+the raster step.  Also want to do testing with ad-hoc velocity fields.
+So, need to specify a method to produce the v-field.  That method
+needs a prior rastered potential result.
+
+** do something
+
+The stepper takes a callable to consume steps.  This callable should
+be configurable and its parameters provided by configuration.
+
+
 * Arrays
 
-Numpy arrays are used as intermediate data types.
+- Numpy arrays are used as intermediate data types.
+- There are many of them.  
+- Keeping track of them in files becomes unwieldy quickly
+- Want to track provenance
+- Want standardization
 
-
+Stick them all in a DB.
 
 * Stepping
 

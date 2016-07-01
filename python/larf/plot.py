@@ -10,6 +10,42 @@ from matplotlib import pyplot as plt
 from mayavi import mlab
 import numpy.ma as ma
 
+
+def twodify(mgrid, values, axis, index):
+    '''
+    Return remove one dimension by taking a indexed slice on axis
+    '''
+    X,Y,Z = mgrid
+    if axis == 0:
+        return np.asarray((Y[index,:,:],Z[index,:,:])), values[index,:,:]
+    if axis == 1:
+        return np.asarray((Z[:,index,:],X[:,index,:])), values[:,index,:]
+    if axis == 2:
+        return np.asarray((X[:,:,index],Y[:,:,index])), values[:,:,index]
+    return
+
+
+def save_raster_any(result, outfile, axis=1, index=0, **kwds):
+    '''
+    Plot a "raster" type result which consists of arrays of type mgrid and values.
+
+    If result arrays are 3D then plot a slice along given axis at index.
+    '''
+    arr = result.array_data_by_name()
+    mgrid,values = arr['mgrid'],arr['values']
+    if mgrid.shape[0] == 3:
+        mgrid, values = twodify(mgrid, values, axis, index)
+
+    X,Y = mgrid
+    plt.clf()
+    fig,ax = plt.subplots()
+    im = ax.pcolor(X, Y, values)
+    fig.colorbar(im)
+    plt.savefig(outfile)
+    return
+
+
+
 def mgrid_extent(mgrid):
     xmin = mgrid[0][0][0]
     xmax = mgrid[0][-1][-1]

@@ -1,11 +1,24 @@
 #!/usr/bin/env python
 '''
-Dumpers and loaders of different results to/from different formats
+Savers and loaders of different results to/from different formats.
+
+Functions here are used by CLI assuming they follow 
+
+    save_<result>_<ext>(result, outfile, **kwds)
+
+naming pattern.  
 '''
 
 import numpy
 
-def dump_mesh_npz(result, outfile, compression=True, **kwds):
+def save_result_json(result, outfile, **kwds):
+    'write me'
+    return not_implemented
+
+def save_result_npz(result, outfile, compression=True, **kwds):
+    '''
+    Save the arrays to the NPZ file.
+    '''
     dat = dict()
     for arr in result.arrays:
         name = arr.name
@@ -19,7 +32,10 @@ def dump_mesh_npz(result, outfile, compression=True, **kwds):
     else:
         numpy.savez(outfile, **dat)
 
-def dump_mesh_msh(result, outfile, **kwds):
+def save_mesh_msh(result, outfile, **kwds):
+    '''
+    Save a mesh result into a MSH ASCII file
+    '''
     import larf.mesh
     import bempp.api
     grid = larf.mesh.result_to_grid(result)

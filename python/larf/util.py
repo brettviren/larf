@@ -56,3 +56,19 @@ def expand_range_dict(d):
         for ind in k:
             ret[ind] = v
     return ret
+
+def expand_tuple_list(d):
+    "Expand a list of tuples like [((1,10),100), (11,200)] to dictionary keyed by that first number"
+    ret = dict()
+    for k,v in d:
+        if isinstance(k, numbers.Number):
+            ret[k] = v
+            continue
+        if isinstance(k, tuple):
+            start,stop = k
+            for ind in range(start, stop+1):
+                ret[ind] = v
+            continue
+        for ind in k:
+            ret[ind] = v
+    return ret

@@ -15,7 +15,6 @@ def boundary_functions(grid, boundary_potential):
                                                     piecewise_lin_space.global_dof_count,
                                                     t2-t1)
 
-
     identity = bempp.api.operators.boundary.sparse.identity(
         piecewise_lin_space, piecewise_lin_space, piecewise_const_space)
     dlp = bempp.api.operators.boundary.laplace.double_layer(
@@ -25,8 +24,12 @@ def boundary_functions(grid, boundary_potential):
 
     t3 = now()
 
-    dirichlet_fun = bempp.api.GridFunction(piecewise_lin_space, fun=dirichlet_data)
-    #bempp.api.export(grid_function=dirichlet_fun, file_name=outname+'_dirichlet.msh')
+    try: 
+        dirichlet_fun = bempp.api.GridFunction(piecewise_lin_space, fun=dirichlet_data)
+    except RuntimeError:
+        print dirichlet_data
+        raise
+        #bempp.api.export(grid_function=dirichlet_fun, file_name=outname+'_dirichlet.msh')
 
     t4 = now()
 

@@ -177,6 +177,7 @@ def result_to_grid(res):
     arrs = {a.type:a.data for a in res.arrays}
 
     fac = bem.GridFactory()
+
     for p in arrs['points']:
         fac.insert_vertex(p)
     for t,d in zip(arrs['triangles'], arrs['domains']):

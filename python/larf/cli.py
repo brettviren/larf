@@ -41,6 +41,15 @@ def cli(ctx, config, store, param):
     return
 
 
+def get_result(ses, resid):
+    from larf.models import Result
+    res = ses.query(Result).filter_by(id = resid)
+    if not res:
+        raise ValueError("No such result ID %d" % resid)
+    return res.one()
+    
+
+
 # http://www.bempp.org/grid.html
 #
 #    Codim-0 entities: Elements of the mesh
@@ -52,6 +61,15 @@ def dump_grid(g):
     '''
     Print out information about a grid.
     '''
+    import hashlib
+    md5 = hashlib.md5()
+    md5.update(g.leaf_view.vertices.tobytes())
+    print 'vertices:', md5.hexdigest()
+    md5.update(g.leaf_view.elements.tobytes())    
+    print 'elements:', md5.hexdigest()
+    md5.update(numpy.asarray(g.leaf_view.domain_indices).tobytes())
+    print 'domains:', md5.hexdigest()
+
     points = set()
     x,y,z = g.leaf_view.vertices
     npoints = len(x)
@@ -61,6 +79,74 @@ def dump_grid(g):
     print npoints, len(points)
     for ind,thing in enumerate(codims):
         print ('\t%d: %d %s' % (ind, g.leaf_view.entity_count(ind), thing))
+
+
+@cli.command("list")
+@click.pass_context
+def cmd_list(ctx):
+    '''
+    List accumulated results.
+
+    @todo: add different verbosity, filters.
+    '''
+    from larf.models import Result
+    ses = ctx.obj['session']
+    # fixme: might be nice to make this spaced out prettier
+    for res in ses.query(Result).all():
+        arrstr = ','.join(["%s%s" % (a.name, str(a.data.shape)) for a in res.arrays])
+        click.echo('result:%d parent:%d %s type:%-10s name:%-12s' % (res.id, res.parent_id or 0, res.created, res.type, res.name))
+        click.echo("  params: %s" % str(res.params))
+        for arr in res.arrays:
+            click.echo("  array:%d type:%-12s name:%-12s dtype:%-8s shape:%s" % (arr.id, arr.type, arr.name, arr.data.dtype, arr.data.shape))
+        click.echo()
+
+@cli.command("export")
+@click.option('-o','--output', help='Set output file.')
+@click.option('-a','--action', default='save', help='Set export action.')
+@click.argument('resultid', type=int)
+@click.pass_context
+def cmd_export(ctx, output, action, resultid):
+    '''
+    Export a result to a file.
+    '''
+    from larf.models import Result
+    import larf.util
+    import larf.persist
+
+    ses = ctx.obj['session']
+    kwd = ctx.obj['params']
+
+    res = get_result(ses, resultid)
+    ext = output.rsplit('.',1)[-1]
+
+    modname = 'larf.persist'
+    if ext in ['png', 'pdf', 'svg', 'eps', 'gif']:
+        modname = 'larf.plot'
+    for rtype in [res.type, 'result']:
+        for oext in [ext, 'any']:
+            methname = "%s.%s_%s_%s" % (modname, action, rtype, oext)
+            #print 'trying: %s' % methname
+            try:
+                meth = larf.util.get_method(methname)
+            except AttributeError:
+                continue
+            meth(res, output, **kwd)
+            return 0
+
+    click.echo('No handler in %s for format "%s" for result #%d <%s>%s' % (modname, ext, res.id, res.type, res.name))
+    return 1
+    
+
+
+
+@cli.command("import")
+@click.argument('filename')
+@click.pass_context
+def cmd_import(ctx, filename):
+    "not yet implemented"
+    click.echo("please implement me!")
+    return
+
 
 
 @cli.command("mesh")
@@ -76,7 +162,6 @@ def cmd_mesh(ctx, mesh, name):
     '''
     import larf.config
     import larf.util
-    import larf.store
     from larf.models import Array, Result
 
     if not mesh:
@@ -102,6 +187,8 @@ def cmd_mesh(ctx, mesh, name):
     for count, mo in enumerate(molist):
         scene.add(mo, count+1)
 
+    dump_grid(scene.grid())
+
     arrays = list()
     for cat, arr in scene.tonumpy().items():
         print cat,len(arr)
@@ -113,49 +200,6 @@ def cmd_mesh(ctx, mesh, name):
     ses.flush()
     click.echo("produced mesh result #%d" % res.id)
     ses.commit()
-
-@cli.command("list")
-@click.pass_context
-def cmd_list(ctx):
-    '''
-    List accumulated results.
-
-    @todo: add different verbosity, filters.
-    '''
-    from larf.models import Result
-    ses = ctx.obj['session']
-    # fixme: might be nice to make this spaced out prettier
-    for res in ses.query(Result).all():
-        arrstr = ','.join(["%s%s" % (a.name, str(a.data.shape)) for a in res.arrays])
-        print '%d %s type:%-10s name:%-12s arrays:%s' % (res.id, res.created, res.type, res.name, arrstr)
-
-@cli.command("export")
-@click.option('-o','--output', help='Set output file.')
-@click.argument('resultid', type=int)
-@click.pass_context
-def cmd_export(ctx, output, resultid):
-    '''
-    Export a result to a file.
-    '''
-    from larf.models import Result
-    import larf.util
-
-    ses = ctx.obj['session']
-    kwd = ctx.obj['params']
-
-    res = ses.query(Result).filter_by(id = resultid).one()
-    
-    methname = 'larf.persist.dump_%s_%s' % (res.type, output.rsplit('.',1)[-1])
-    meth = larf.util.get_method(methname)
-    meth(res, output, **kwd)
-
-@cli.command("import")
-@click.argument('filename')
-@click.pass_context
-def cmd_import(ctx, filename):
-    "not yet implemented"
-    click.echo("please implement me!")
-    return
 
 
 
@@ -182,8 +226,11 @@ def cmd_boundary(ctx, boundary, mesh_id, name):
         boundary = name
 
     ses = ctx.obj['session']
-    meshres = ses.query(Result).filter_by(id = mesh_id).one()
+    meshres = get_result(ses, mesh_id)
     grid = larf.mesh.result_to_grid(meshres)
+    #print 'HARDCODED GRID WARNING'
+    #import bempp.api
+    #grid = bempp.api.import_grid("wirescpa.msh")
 
     cfg = ctx.obj['cfg']
     par = ctx.obj['params']
@@ -194,14 +241,17 @@ def cmd_boundary(ctx, boundary, mesh_id, name):
     meth = larf.util.get_method(methname)
 
     dirichlet_data = meth(**methparams)
+    print dirichlet_data
 
+    dump_grid(grid)
+    
     dfun, nfun = larf.solve.boundary_functions(grid, dirichlet_data)
 
     res = Result(name=name, type='boundary', parent=meshres,
                  params=dict(method=methname, params=methparams),
                  arrays = [
-                     Array(name='dirichlet', type='coefficients', data=dfun.coefficients),
-                     Array(name='neumann', type='coefficients', data=nfun.coefficients),
+                     Array(name='dirichlet', type='coeff', data=dfun.coefficients),
+                     Array(name='neumann', type='coeff', data=nfun.coefficients),
                  ])
     ses.add(res)
     ses.flush()
@@ -225,7 +275,7 @@ def cmd_raster(ctx, raster, boundary_id, name):
     import larf.solve
     import larf.config
     import larf.mesh
-    from larf.models import Result, Array
+    from larf.models import Result
     import bempp.api
 
     if not raster:
@@ -234,8 +284,8 @@ def cmd_raster(ctx, raster, boundary_id, name):
     #larf.solve.set_gaussian_quadrature(16,12,4)
     ses = ctx.obj['session']
 
-    potres = ses.query(Result).filter_by(id = boundary_id).one()
-    meshres = ses.query(Result).filter_by(id = potres.parent_id).one()
+    potres = get_result(ses, boundary_id)
+    meshres = get_result(ses, potres.parent_id)
     grid = larf.mesh.result_to_grid(meshres)
 
     potarrs = potres.array_data_by_name()
@@ -253,7 +303,7 @@ def cmd_raster(ctx, raster, boundary_id, name):
         arrays = meth(grid, dfun, nfun, **methparams)
         res = Result(name=name, type='raster', parent=potres,
                      params=dict(method=methname, params=methparams),
-                     arrays = [Array(name=nam, type='potential', data=arr) for nam,arr in arrays.items()])
+                     arrays = arrays)
         ses.add(res)
         ses.flush()
         resids.append(res.id)
@@ -264,6 +314,68 @@ def cmd_raster(ctx, raster, boundary_id, name):
         return 1
     click.echo("failed to produce any raster results")
 
+
+@cli.command("velocity")
+@click.option('-m','--method', default='drift', help='Velocity calculation method.')
+@click.option('-r','--raster-id', required=True, type=int,
+              help='Set the result ID of the rastered potential to use.')
+@click.argument('name')
+@click.pass_context
+def cmd_velocity(ctx, method, raster_id, name):
+    '''
+    Calculation a velocity vector field.
+    '''
+    from larf.models import Result
+
+    if method == 'drift':
+        methname = 'larf.drift.result_to_velocity'
+    else:
+        click.echo('Unknown velocity calculation method: "%s"' % method)
+        return 1
+
+    ses = ctx.obj['session']
+    potres = get_result(ses, raster_id)
+
+    import larf.util
+    meth = larf.util.get_method(methname)
+    par = ctx.obj['params']
+    arrays = meth(potres, **par)
+
+    res = Result(name=name, type='velocity', parent=potres,
+                 params=dict(method=methname, params=par),
+                 arrays=arrays)
+    ses.add(res)
+    ses.flush()
+    resid = res.id
+    ses.commit()
+    click.echo('produced velocity result: %d' % resid)
+
+@cli.command("step")
+@click.option('-q','--charge', default=1.0, help='The amount of charge to drift.')
+@click.option('-t','--time', default=0.0, help='Staring time of drift.')
+@click.option('-r','--position', default="0,0,0", help='Starting position.')
+@click.option('-s', '--stepper', default='rkck', help='Set the stepper.')
+@click.option('-v', '--velocity-id', required=True, type=int,
+              help='Set the result ID of the velocity field to use')
+@click.option('-w', '--weighting-id', required=True, type=int,
+              help='Set the result ID of the weighting field to use')
+@click.argument('name')
+@click.pass_context
+def cmd_step(ctx, charge, time, position, stepper, velocity_id, weighting_id, name):
+    import larf.drift
+
+    ses = ctx.obj['session']
+    velores = get_result(ses, velocity_id)
+    weightres = get_result(ses, weighting_id)
+
+    varr = velores.array_data_by_type()
+    velo = larf.drift.InterpolatedField(varr['gvector'], varr['mgrid'])
+    def velocity(notused, r):
+        return velo(r)
+    stepper = larf.drift.Stepper(velocity, lcar=0.1)
+    steps = stepper(time, position)
+    print steps
+    return
 
 
 @cli.command()
@@ -311,6 +423,7 @@ def load_arrays(*filenames):
         arrays.update(**dat)
     return arrays
 
+
 @cli.command()
 @click.option('-p','--point', nargs=3, type=float, help='A starting point')
 @click.option('-d','--drift', help='Name of array holding the drift potential')
@@ -318,7 +431,7 @@ def load_arrays(*filenames):
 @click.option('-o','--output', help='Output filename')
 @click.argument('filename', nargs="+")
 @click.pass_context
-def step(ctx, point, drift, outname, output, filename):
+def brokenstep(ctx, point, drift, outname, output, filename):
     '''
     Step through a drift potential.
     '''

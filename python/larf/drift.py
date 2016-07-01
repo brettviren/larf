@@ -72,6 +72,16 @@ def dot(field1, field2):
 def mag(field):
     return numpy.sqrt(dot(field,field))
 
+class Field(object):
+    '''
+    An interpolated N-dimensional vector field
+    '''
+    def __init__(self, field, mgrid):
+        '''
+        Create an interpolated N-dimensional vector field from the given field and its mgrid.
+        '''
+        pass
+
 class Gradient(object):
     def __init__(self, scalar, points):
         '''
@@ -79,10 +89,12 @@ class Gradient(object):
         its scalar field (eg, electrostatic potential) values on a
         grid of points.
 
-        :param scalar: scalar field values defined on a grid.
-        :type scalar: N-dimensional array shape (a1,a2,...)
-        :param points: describe the grid by array of values on each axis.
-        :type points: N-tuple of 1-D arrays of shape (a1,), (a2,), ...
+        @param scalar: scalar field values defined on a grid.
+        @type scalar: N-dimensional array shape (a1,a2,...)
+
+        @param points: describe the grid by array of values on each
+            axis.
+        @type points: N-tuple of 1-D arrays of shape (a1,), (a2,), ...
         '''
         if not isinstance(points,list) and not isinstance(points,tuple):
             points = [points]
@@ -97,9 +109,9 @@ class Gradient(object):
         '''
         Return the gradient at the point.
 
-        :param point: the point in space at which to evaluate gradient
-        :type point: N-dimensional sequence of coordinates or N coordinates as individual arguments
-        :returns: N-dimensional array -- the components of the gradient at the given point
+        @param point: the point in space at which to evaluate gradient
+        @type point: N-dimensional sequence of coordinates or N coordinates as individual arguments
+        @return: N-dimensional array -- the components of the gradient at the given point
         '''
         if isinstance(point[0],list) or isinstance(point[0],tuple):
             point = point[0]
@@ -111,9 +123,9 @@ class Gradient(object):
         '''
         Evaluate  gradient on a grid of points.
 
-        :param points: describe the grid by array of values on each axis.
-        :type points: N-tuple of 1-D arrays of shape (a1,), (a2,), ...
-        :returns: N-tuple of N-dimensional arrays, each one component of the gradient vector 
+        @param points: describe the grid by array of values on each axis.
+        @type points: N-tuple of 1-D arrays of shape (a1,), (a2,), ...
+        @return: N-tuple of N-dimensional arrays, each one component of the gradient vector 
         '''
         grid = numpy.meshgrid(*points, indexing='ij')
         shape = grid[0].shape
@@ -132,6 +144,24 @@ def test_velocity():
     pot = px * numpy.exp(-px**2 - py**2)
     velo = Gradient(pot, (xlin, ylin))
     return velo
+
+
+
+def result_to_velocity(result, temperature=89*units.Kelvin, **kwds):
+    '''
+    Return an N-field matrix calculated assuming result holds a potential.
+    '''
+    arrs = result.array_data_by_type()
+    field = arrs['gvector'] # N-D array of scalar potential values
+    mgrid = arrs['mgrid']   # forward to output
+
+    mag = numpy.sqrt(numpy.add(*[e**2 for e in field]))
+    mu = mobility(mag, temperature)
+    velo = mu*field
+
+    from larf.models import Array
+    return [Array(name='domain', type='mgrid', data=mgrid),
+            Array(name='velocity', type='gvector', data = numpy.asarray(velo))]
 
 
 def induced_current(Eweight, Edrift, mu, charge=1.0):

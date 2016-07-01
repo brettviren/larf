@@ -10,7 +10,7 @@ def cpa(dx=1*mm, dy=20*cm, dz=20*cm, offsetx=0, lcar=None, **kwds):
     if lcar is None:
         lcar = 0.5*max(dx,dy,dz)
 
-    box = larf.shapes.box(dx,dy,dz,lcar)
+    box = larf.shapes.box(dx,dy,dz,lcar, **kwds)
     #print box
     mo = MeshObject()
     mo.gen(box)

@@ -23,10 +23,10 @@ class weighting(object):
 class drift(object):
     def __init__(self, domain_voltage_map=None, **kwds):
 
-        self.dvm = larf.util.expand_range_dict(domain_voltage_map)
+        self.dvm = larf.util.expand_tuple_list(domain_voltage_map)
         if not self.dvm:
             raise ValueError("Need a domain-voltage mapping")
-        print self.dvm
+        print "Domain voltage map:", str(self.dvm)
         self.ntot = 0
         self.nset = 0
         self.counts = defaultdict(int)
@@ -38,6 +38,7 @@ class drift(object):
         res = self.dvm.get(index, None)
         if res is None:
             self.unknown[index] += 1
+            print 'Unknown domain: %d' % index
             return
 
         result[0] = res
@@ -48,4 +49,4 @@ class drift(object):
     def __str__(self):
         f = ', '.join(["%s:%s" %(k,v) for k,v in sorted(self.counts.items())])
         m = ', '.join(["%s:%s" %(k,v) for k,v in sorted(self.unknown.items())])
-        return 'domains given: %d, set: %d, tried: %d\nfound:%s\nmissed:%s)' % (len(self.dvm), self.nset, self.ntot,f,m)
+        return 'domains given: %d, set: %d, tried: %d\nfound:%s\nmissed:%s' % (len(self.dvm), self.nset, self.ntot,f,m)

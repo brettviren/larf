@@ -18,6 +18,30 @@ import numpy as np
 import bempp.api
 from time import time as now
 from larf.bem import spaces
+from larf.models import Array
+
+def linear(grid, dfun, nfun,
+           linspaces=[(-50,50,150), (-50,50,150), (0,0,1)], **kwds):
+    '''
+    Evaluate the potential on a linear grid space.
+    '''
+    # "piecewise const/linear space"
+    pcspace, plspace = spaces(grid)
+    ndim = len(linspaces)
+    linspaces = [np.linspace(*ls) for ls in linspaces]
+    mgrid = np.meshgrid(*linspaces, indexing='ij')
+    points = np.vstack([mgrid[i].ravel() for i in range(ndim)])
+
+    slp_pot = bempp.api.operators.potential.laplace.single_layer(pcspace, points)
+    dlp_pot = bempp.api.operators.potential.laplace.double_layer(plspace, points)
+    u_evaluated = slp_pot*nfun-dlp_pot*dfun
+    u_reshaped = u_evaluated.reshape(mgrid[0].shape)
+
+
+    return [Array(type='mgrid', name='domain', data=mgrid),
+            Array(type='gscalar', name='scalar', data = u_reshaped),
+            Array(type='gvector', name='gradient', data = np.asarray(np.gradient(u_reshaped)))]
+    
 
 def pixels(grid, dirichlet_fun, neumann_fun, 
            ngridx=150, ngridy=150, xrange=(-50,50), yrange=(-50,50),
