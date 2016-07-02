@@ -57,21 +57,43 @@ def get_result(ses, resid):
 #    Codim-2 entities: Verticies of the mesh
 codims = ['elements', 'edges', 'vertices']
 
+def cycle_io(grid):
+    import bempp.api
+    import tempfile
+    tf = tempfile.mktemp() + '.msh'
+    print tf
+    bempp.api.export(grid=grid, file_name = tf)
+    grid2 = bempp.api.import_grid(tf)
+    return grid2
+
 def dump_grid(g):
     '''
     Print out information about a grid.
     '''
+    pts = g.leaf_view.vertices
+    ele = g.leaf_view.elements
+    dom = g.leaf_view.domain_indices
+
     import hashlib
     md5 = hashlib.md5()
-    md5.update(g.leaf_view.vertices.tobytes())
-    print 'vertices:', md5.hexdigest()
-    md5.update(g.leaf_view.elements.tobytes())    
-    print 'elements:', md5.hexdigest()
-    md5.update(numpy.asarray(g.leaf_view.domain_indices).tobytes())
-    print 'domains:', md5.hexdigest()
+    md5.update(numpy.asarray(dom).tobytes())
+    print '%d domains:\t%s' % (len(dom), md5.hexdigest())
+    md5.update(ele.tobytes())    
+    print '%d elements:\t%s' % (len(ele.T), md5.hexdigest())
+    md5.update(pts.tobytes())
+    print '%d vertices:\t%s' % (len(pts.T), md5.hexdigest())
+
+    print ele
+
+    print len(set([tuple(p) for p in pts.T.tolist()]))
+
+    all_point_refs = ele.ravel().tolist()
+    uniq_point_refs = set(all_point_refs)
+    print '#element vertices: unique=%d all=%d min=%d max=%d' % \
+        (len(uniq_point_refs), len(pts.T), min(uniq_point_refs), max(uniq_point_refs))
 
     points = set()
-    x,y,z = g.leaf_view.vertices
+    x,y,z = pts
     npoints = len(x)
     for i in range(npoints):
         p = (x[i],y[i],z[i])
@@ -187,13 +209,16 @@ def cmd_mesh(ctx, mesh, name):
     for count, mo in enumerate(molist):
         scene.add(mo, count+1)
 
-    dump_grid(scene.grid())
+    grid = scene.grid()
+    lv = grid.leaf_view
 
-    arrays = list()
-    for cat, arr in scene.tonumpy().items():
-        print cat,len(arr)
-        arrays.append(Array(name=cat, type=cat, data=arr))
-    res = Result(name=name, type='mesh', arrays=arrays, params = calls)
+    res = Result(name=name, type='mesh',
+                 params = calls,
+                 arrays = [
+                     Array(type='domains', name='domains', data=lv.domain_indices),
+                     Array(type='points', name='points', data=lv.vertices.T),
+                     Array(type='triangles', name='triangles', data=lv.elements.T),
+                     ])
 
     ses = ctx.obj['session']
     ses.add(res)
@@ -215,7 +240,7 @@ def cmd_boundary(ctx, boundary, mesh_id, name):
     Solve surface boundary potentials.
     '''
     import larf.solve
-    #larf.solve.set_gaussian_quadrature(16,12,4)
+    larf.solve.set_gaussian_quadrature(16,12,4)
 
     import larf.config
     import larf.util
@@ -228,9 +253,6 @@ def cmd_boundary(ctx, boundary, mesh_id, name):
     ses = ctx.obj['session']
     meshres = get_result(ses, mesh_id)
     grid = larf.mesh.result_to_grid(meshres)
-    #print 'HARDCODED GRID WARNING'
-    #import bempp.api
-    #grid = bempp.api.import_grid("wirescpa.msh")
 
     cfg = ctx.obj['cfg']
     par = ctx.obj['params']
@@ -243,7 +265,7 @@ def cmd_boundary(ctx, boundary, mesh_id, name):
     dirichlet_data = meth(**methparams)
     print dirichlet_data
 
-    dump_grid(grid)
+
     
     dfun, nfun = larf.solve.boundary_functions(grid, dirichlet_data)
 

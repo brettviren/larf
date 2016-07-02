@@ -46,7 +46,7 @@ If =dpkg= command will fail the subsequent =apt-get= will install missing depend
 
 #+BEGIN_SRC sh
   $ git clone ...
-  $ cd lartpc-field
+  $ cd larf
   $ python setup.py install
   # or 
   $ python setup.py develop

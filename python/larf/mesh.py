@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import meshio
 import math
-import numpy as np
+import numpy
 from collections import defaultdict
 
 import bempp.api as bem
@@ -17,13 +17,13 @@ def array2dict(a):
         array = a.tolist())
 
 def dict2array(d):
-    return np.asarray(d['array'], d['type'])
+    return numpy.asarray(d['array'], d['type'])
 
 class Object(object):
     "A mesh on one object"
     def __init__(self, points=None, elements=None):
         if points is None:
-            points = np.ndarray((0,3), dtype='float')
+            points = numpy.ndarray((0,3), dtype='float')
         self.points = points
         self.elements = elements or dict()
         
@@ -75,20 +75,20 @@ class Object(object):
     def rotate(self, angle, axis = None):
         if axis is None:
             axis = [1,0,0]
-        axis = np.asarray(axis)
-        theta = np.asarray(angle)
-        axis = axis/math.sqrt(np.dot(axis, axis))
+        axis = numpy.asarray(axis)
+        theta = numpy.asarray(angle)
+        axis = axis/math.sqrt(numpy.dot(axis, axis))
         a = math.cos(theta/2.0)
         b, c, d = -axis*math.sin(theta/2.0)
         aa, bb, cc, dd = a*a, b*b, c*c, d*d
         bc, ad, ac, ab, bd, cd = b*c, a*d, a*c, a*b, b*d, c*d
-        rot = np.array([[aa+bb-cc-dd, 2*(bc+ad), 2*(bd-ac)],
+        rot = numpy.array([[aa+bb-cc-dd, 2*(bc+ad), 2*(bd-ac)],
                         [2*(bc-ad), aa+cc-bb-dd, 2*(cd+ab)],
                         [2*(bd+ac), 2*(cd-ab), aa+dd-bb-cc]])
-        points = np.ndarray((0,3), dtype='float')
+        points = numpy.ndarray((0,3), dtype='float')
         for p in self.points:
-            newp = np.dot(rot, p)
-            points = np.append(points, [newp], axis=0)
+            newp = numpy.dot(rot, p)
+            points = numpy.append(points, [newp], axis=0)
         self.points = points
         
 
@@ -103,16 +103,21 @@ class Scene(object):
 
     def grid(self):
         "Return a BEM++ grid object for the scene."
-        fac = bem.GridFactory()
+        points = list()
+        domains = list()
+        triangles = list()
         point_offset = 0
         for domain, mobjs in sorted(self.objects.items()):
             for mobj in mobjs:
                 for p in mobj.points:
-                    fac.insert_vertex(p)
+                    points.append(p)
                 for tri in mobj.triangle:
-                    fac.insert_element(point_offset + tri, domain)
+                    triangles.append(point_offset + tri)
+                    domains.append(domain)
                 point_offset += len(mobj.points)
-        return fac.finalize()
+
+        points, triangles = make_unique(numpy.asarray(points), numpy.asarray(triangles))
+        return bem.grid_from_element_data(points.T,triangles.T,domains)
 
     def asdict(self):
         "Return self as nested dictionary."
@@ -154,7 +159,6 @@ class Scene(object):
         >>> numpy.savez_compressed("myfile.npz", **myscene.tonumpy())
 
         """
-        import numpy
         points = numpy.ndarray((0,3), dtype=float)
         triangles = numpy.ndarray((0,3), dtype=int)
         domains = numpy.ndarray((0,), dtype=int)
@@ -167,7 +171,31 @@ class Scene(object):
                 triangles = numpy.vstack((triangles, obj.triangle + points_offset))
                 domains = numpy.r_[domains, numpy.ones(ntris)*dom]
                 points_offset += len(obj.points)
+
+        points, triangles = make_unique(points, triangles)
+
         return dict(points=points, triangles=triangles, domains=domains)
+
+
+def make_unique(pts, tris):
+    '''
+    Make new points and triangles arrays which remove any points not
+    referenced by triangles.
+    '''
+
+    unqind = sorted(list(set(tris.ravel().tolist())))
+    newpts = list()
+    indmap = dict()
+    for oldind in unqind:
+        indmap[oldind] = len(newpts)
+        newpts.append(pts[oldind])
+    newtris = list()
+    for tri in tris:
+        newtri = numpy.asarray([indmap[ind] for ind in tri])
+        newtris.append(newtri)
+
+    return numpy.asarray(newpts), numpy.asarray(newtris)
+    
 
 
 def result_to_grid(res):
@@ -176,6 +204,12 @@ def result_to_grid(res):
     '''
     arrs = {a.type:a.data for a in res.arrays}
 
+    pts, tri, dom = arrs['points'],arrs['triangles'],arrs['domains']
+    pts, tri = make_unique(pts, tri)
+    return bem.grid_from_element_data(pts.T,tri.T,dom)
+
+def result_to_grid_one_by_one(res):
+    arrs = {a.type:a.data for a in res.arrays}
     fac = bem.GridFactory()
 
     for p in arrs['points']:
