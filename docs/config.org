@@ -1,12 +1,14 @@
-* Configuration
+#+TITLE: Configuration
 
-The =larf= tool relies on a configuration file to specify parameters that are expected to be reused between calls to the =larf= command.  The format of this file follows the "INI" schema which consists of named sections of key/value pairs.  Some simple interpretation semantics are then overlayed.  The default configuration file is in the current working directory and named [[./larf.cfg][=larf.cfg=]].  A different file can be specified with the =-c= option
+* Overview
+
+The =larf= tool relies on a configuration file to specify parameters that are expected to be reused between calls to the =larf= command.  The format of this file follows the "INI" schema which consists of named sections of key/value pairs.  Some simple interpretation semantics are then overlayed.  The default configuration file is in the current working directory and named [[./larf.cfg][larf.cfg]].  A different file can be specified with the =-c= option
 
 #+BEGIN_SRC sh
   $ larf -c myconfig.cfg ...
 #+END_SRC
 
-** Section categories and names
+* Section categories and names
 
 Each section name is two words giving the section type or category and an instance name.
 For example this section is in the =mesh= category and named =parallel=:
@@ -16,7 +18,7 @@ For example this section is in the =mesh= category and named =parallel=:
   # ... key/value pairs
 #+END_EXAMPLE
 
-** Configuration items
+* Configuration items
 
 There are two types of key/value configuration items.  
 
@@ -25,14 +27,13 @@ There are two types of key/value configuration items.
 
 The directives depend on the section category as described:
 
-*** Functional categories
+** Functional categories
 
 The following categories are "functional":
 
 - mesh :: describe how to construct a surface mesh
 - boundary :: describe a boundary potential
 - raster :: describe how to raster the solution over some space
-- plot :: make a plot
 
 These categories are called "functional" as they are meant to describe a function to call and its parameters.  The "function" is described as a Python "dotted" path consisting of one or more modules and an object.  The parameter set is built from two sources of key/values pairs.  First, a =param= key can be specified and all key/value pairs in the associated =params= section will be used.  This set will be updated with any other key/value pairs given in the original configuration section.  An example makes this clear:
 
@@ -55,49 +56,23 @@ In the example a mesh named "parallel" is to be build from the =parallel()= meth
 
 Note the use of units for distance quantities.  The =larf= supports a limited set of units including length and time.  
 
-*** The =solve= category
+** The =solve= category
 
 This =solve= category simply aggregates two functional categories by naming a configuration section in each:
 
 - =boundary= :: names a "boundary" category configuration section
 - =raster= :: names a "raster" category configuration section
 
-*** Parameter category
+** Parameter category
 
-As mostly already described, the =params= configuration section category just holds key/value pairs evaluated at face value.  These can be useful if different =larf= command require sharing the same parameters.  For example both the =solve= and =plot= need to share raster parameters.
+As mostly already described, the =params= configuration section category just holds key/value pairs evaluated at face value.  These can be useful if different =larf= command require sharing the same parameters.  For example, if the same parameters describing wires are used in multiple =mesh= sections they can be put into a shared =params= section.
 
 
-
-** Command Line Parameters
+* Command Line Parameters
 
 You may also specify general parameters to =larf= on the command line which may override those specified in the configuration file.
 
 #+BEGIN_SRC sh
   $ larf -P foo=bar,baz=quax -P domain=11 [...]
 #+END_SRC
-
-* Files
-
-Various =larf= commands consume and produce Numpy arrays stored in =.npz= files.  This graph tries to collect some of this.
-
-[[./steps.png]]
-
-(note: may not actually be right)
-
-** Array names
-
-To support arrays from multiple steps and different solutions solutions the arrays encode metadata as:
-
-#+BEGIN_EXAMPLE
-<name>_<step>_<type>
-#+END_EXAMPLE
-
-Where each label identifies:
-
-- =name= :: an external configuration set by user or =larf= by default,
-- =step= :: the step that produced the array,
-- =type= :: a category for the array.
-
-The =name= may be free form except it must consist of only alphanumeric characters (and no underscore "=_=").
-
 
