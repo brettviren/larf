@@ -20,8 +20,8 @@ latter runs in parallel.  The host is an i7-4790K with 4 cores and times-2 HT.
 
 The =larf raster= command evaluates the solution at points in the
 volume.  With each mesh above (identified by its =lcar= value) a 3D
-raster of $500 = 5 \times 10 \times 10$ points and $500000 = 50 \times
-100 \times 100$ points are performed.
+raster of 500 = 5 \times 10 \times 10 points and 500000 = 50 \times
+100 \times 100 points are performed.
 
 | lcar (mm) | "500" (s) | "500K" (s)   |
 |-----------+-----------+--------------|

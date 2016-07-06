@@ -22,7 +22,7 @@ More information is provided under [[./docs/]] including:
 
 - [[./docs/install.org][Install]] the software.
 - [[./docs/run.org][Run]] the command line interface.
-- [[./docs/configure.org][Configure]] the steps.
+- [[./docs/config.org][Configure]] the steps.
 - [[./docs/export.org][Exporting]] the data into different formats.
 - [[./docs/interactive.org][Interactively]] using the package.
 - [[./docs/speed/speed.org][Speed]] can be an issue.
