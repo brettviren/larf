@@ -21,7 +21,7 @@ from larf.bem import spaces
 from larf.models import Array
 
 def linear(grid, dfun, nfun,
-           linspaces=[(-50,50,150), (-50,50,150), (0,0,1)], **kwds):
+           linspaces=[(-1,1,10), (-2,2,20), (-3,3,30)], **kwds):
     '''
     Evaluate the potential on a linear grid space.
     '''

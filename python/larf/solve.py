@@ -45,7 +45,7 @@ def boundary_functions(grid, boundary_potential):
     print dirichlet_data
 
     print 'Solving boundary integral equation'
-    neumann_fun, info = bempp.api.linalg.cg(slp, rhs, tol=1E-8)
+    neumann_fun, info = bempp.api.linalg.cg(slp, rhs, tol=1E-3)
     #bempp.api.export(grid_function=neumann_fun, file_name=outname+'_neumann.msh')
     #print type(neumann_fun)
 

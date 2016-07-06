@@ -1,0 +1,130 @@
+Tue Jul  5 11:10:33 EDT 2016
+mesh capacitor1
+box lcar: 1
+box lcar: 1
+mesh result id 1
+
+real	0m2.804s
+user	0m2.508s
+sys	0m0.096s
+mesh capacitor1
+mesh capacitor5
+box lcar: 5
+box lcar: 5
+mesh result id 2
+
+real	0m0.489s
+user	0m0.388s
+sys	0m0.052s
+mesh capacitor5
+mesh capacitor10
+box lcar: 10
+box lcar: 10
+mesh result id 3
+
+real	0m0.439s
+user	0m0.332s
+sys	0m0.048s
+mesh capacitor10
+boundary capacitor1
+Domain voltage map: {1: -5000.0, 2: 5000.0}
+domains given: 2, set: 0, tried: 0
+found:
+missed:
+DoFs: const=61768 linear=30888 in 0.0 sec
+Made boundary function in 0.9 sec
+Evaluating integral equation
+	in 75.4 sec
+domains given: 2, set: 185304, tried: 185304
+found:1:92652, 2:92652
+missed:
+Solving boundary integral equation
+	in 29.0 sec
+boundary result id 4
+
+real	1m46.540s
+user	12m50.864s
+sys	0m4.236s
+boundary capacitor1
+boundary capacitor5
+Domain voltage map: {1: -5000.0, 2: 5000.0}
+domains given: 2, set: 0, tried: 0
+found:
+missed:
+DoFs: const=2972 linear=1490 in 0.0 sec
+Made boundary function in 0.0 sec
+Evaluating integral equation
+	in 1.7 sec
+domains given: 2, set: 8916, tried: 8916
+found:1:4458, 2:4458
+missed:
+Solving boundary integral equation
+	in 0.8 sec
+boundary result id 5
+
+real	0m3.004s
+user	0m18.380s
+sys	0m0.256s
+boundary capacitor5
+boundary capacitor10
+Domain voltage map: {1: -5000.0, 2: 5000.0}
+domains given: 2, set: 0, tried: 0
+found:
+missed:
+DoFs: const=920 linear=464 in 0.0 sec
+Made boundary function in 0.0 sec
+Evaluating integral equation
+	in 0.4 sec
+domains given: 2, set: 2760, tried: 2760
+found:1:1380, 2:1380
+missed:
+Solving boundary integral equation
+	in 0.2 sec
+boundary result id 6
+
+real	0m0.834s
+user	0m3.932s
+sys	0m0.136s
+boundary capacitor10
+raster capacitor10
+raster result id 7
+
+real	0m6.061s
+user	0m22.756s
+sys	0m3.524s
+raster capacitor10
+raster capacitor10
+raster result id 8
+
+real	0m0.489s
+user	0m0.496s
+sys	0m0.032s
+raster capacitor10
+raster capacitor10
+raster result id 9
+
+real	0m0.356s
+user	0m0.268s
+sys	0m0.040s
+raster capacitor10
+raster capacitor100
+raster result id 10
+
+real	5m13.832s
+user	38m11.444s
+sys	0m9.132s
+raster capacitor100
+raster capacitor100
+raster result id 11
+
+real	3m1.693s
+user	21m7.268s
+sys	0m7.764s
+raster capacitor100
+raster capacitor100
+raster result id 12
+
+real	1m25.224s
+user	8m4.156s
+sys	0m15.572s
+raster capacitor100

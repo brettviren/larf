@@ -32,3 +32,5 @@ notes.pdf
 *.db
 *.sqlite
 *.sqlite3
+*.html
+*.vtk

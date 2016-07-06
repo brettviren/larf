@@ -1,0 +1,50 @@
+#+TITLE: Install LARF
+
+* Overview
+
+LARF itself is a pure-Python package with a command line interface called =larf=.  It requires some major packages:
+
+- numpy/matplotlib/scipy
+- BEM++
+- gmsh
+- click
+- sqlalchemy/sqlite3
+
+* Install system prerequisites
+
+Assuming a recent Debian-based distribution:
+
+#+BEGIN_SRC sh
+  $ sudo apt-get install gmsh python-sqlalchemy sqlite3 python-virtualenv \
+                         python-scipy python-matplotlib python-numpy
+  $ virtualenv --system-site-packages venv
+  $ source venv/bin/activate
+  $ pip install pygmsh meshio nose
+#+END_SRC
+
+* Install BEM++
+
+See [[http://www.bempp.org/installation.html][BEM++ install instructions]].  Eg:
+
+#+BEGIN_SRC sh
+  $ wget http://www.bempp.org/files/python-bempp_wily_3.0.3_amd64.deb
+  $ sudo dpkg -i python-bempp_wily_3.0.3_amd64.deb
+  $ sudo apt-get -f install
+#+END_SRC
+
+If =dpkg= command will fail the subsequent =apt-get= will install missing dependencies and complete the BEM++ installation.
+
+* Install LARF itself
+
+LARF installs in the "usual Python way":
+
+#+BEGIN_SRC sh
+  $ git clone ...
+  $ cd larf
+  $ python setup.py install
+  # or 
+  $ python setup.py develop
+  $ larf 
+#+END_SRC
+
+

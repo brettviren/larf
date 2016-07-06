@@ -9,6 +9,8 @@ This gets installed as the "larf" command.
 import click
 import numpy
 
+import larf.store
+
 
 @click.group()
 @click.option('-c', '--config', default='larf.cfg', help = 'Set configuration file.')
@@ -27,27 +29,16 @@ def cli(ctx, config, store, param):
 
     import larf.config
     if config:
+        ctx.obj['config_filename'] = config
         ctx.obj['cfg'] = larf.config.parse(config)
 
-    if not store or store.lower() == 'none' or store.lower() == "memory":
-        store = "sqlite:///:memory:"
-    if ":///" not in store:      # assume sqlite3 db file
-        store = "sqlite:///" + store
+    ctx.obj['store'] = store
 
-    import larf.store
     ctx.obj['session'] = larf.store.session(store)
 
     #click.echo ("using larf store %s" % store)
     return
 
-
-def get_result(ses, resid):
-    from larf.models import Result
-    res = ses.query(Result).filter_by(id = resid)
-    if not res:
-        raise ValueError("No such result ID %d" % resid)
-    return res.one()
-    
 
 
 # http://www.bempp.org/grid.html
@@ -103,6 +94,32 @@ def dump_grid(g):
         print ('\t%d: %d %s' % (ind, g.leaf_view.entity_count(ind), thing))
 
 
+@cli.command("config")
+@click.pass_context
+def cmd_config(ctx):
+    par = ctx.obj['params']
+    cfg = ctx.obj['cfg']
+
+    click.echo('Store: %s' % ctx.obj['store'])
+    click.echo('Config: %s' % ctx.obj['config_filename'])
+
+    import pprint
+    if par:
+        click.echo("Command line parameters:")
+        click.echo(pprint.pformat(par, indent=2))
+    else:
+        click.echo("No command line parameters")
+
+    from collections import defaultdict
+    click.echo("Configuration sections:")
+    secs = defaultdict(list)
+    for sec in cfg.keys():
+        typ,nam = sec.split(' ',1)
+        secs[typ].append(nam)
+    for sec in sorted(secs.keys()):
+        print '\t%s: %s' % (sec, ', '.join(sorted(secs[sec])))
+    
+
 @cli.command("list")
 @click.pass_context
 def cmd_list(ctx):
@@ -112,12 +129,14 @@ def cmd_list(ctx):
     @todo: add different verbosity, filters.
     '''
     from larf.models import Result
+    import pprint
+
     ses = ctx.obj['session']
     # fixme: might be nice to make this spaced out prettier
     for res in ses.query(Result).all():
         arrstr = ','.join(["%s%s" % (a.name, str(a.data.shape)) for a in res.arrays])
         click.echo('result:%d parent:%d %s type:%-10s name:%-12s' % (res.id, res.parent_id or 0, res.created, res.type, res.name))
-        click.echo("  params: %s" % str(res.params))
+        click.echo("  params: %s" % pprint.pformat(res.params, indent=2))
         for arr in res.arrays:
             click.echo("  array:%d type:%-12s name:%-12s dtype:%-8s shape:%s" % (arr.id, arr.type, arr.name, arr.data.dtype, arr.data.shape))
         click.echo()
@@ -138,7 +157,7 @@ def cmd_export(ctx, output, action, resultid):
     ses = ctx.obj['session']
     kwd = ctx.obj['params']
 
-    res = get_result(ses, resultid)
+    res = larf.store.result(ses, resultid)
     ext = output.rsplit('.',1)[-1]
 
     modname = 'larf.persist'
@@ -170,6 +189,9 @@ def cmd_import(ctx, filename):
     return
 
 
+
+def announce_result(type, res):
+    click.echo('%s result id %d' % (type, res.id))
 
 @cli.command("mesh")
 @click.option('-m','--mesh',
@@ -223,9 +245,12 @@ def cmd_mesh(ctx, mesh, name):
     ses = ctx.obj['session']
     ses.add(res)
     ses.flush()
-    click.echo("produced mesh result #%d" % res.id)
     ses.commit()
 
+    #click.echo("produced mesh result #%d: %d domains, %d points, %d triangles" % \
+    # (res.id, len(set(lv.domain_indices)), len(lv.vertices.T), len(lv.elements.T)))
+    announce_result('mesh', res)
+    return
 
 
 @cli.command("boundary")
@@ -233,14 +258,17 @@ def cmd_mesh(ctx, mesh, name):
               help='Set the "boundary" section in the configuration file to use')
 @click.option('-m', '--mesh-id', required=True, type=int,
               help='Set the result ID of the mesh to use')
+@click.option('-q', '--quadrature-order-multiplier', default=1, type=int,
+              help='Set the precision order for Gaussian quadrature.')
 @click.argument('name')
 @click.pass_context
-def cmd_boundary(ctx, boundary, mesh_id, name):
+def cmd_boundary(ctx, boundary, mesh_id, quadrature_order_multiplier, name):
     '''
     Solve surface boundary potentials.
     '''
     import larf.solve
-    larf.solve.set_gaussian_quadrature(16,12,4)
+    quad_order = quadrature_order_multiplier * [4,3,2]
+    larf.solve.set_gaussian_quadrature(*quad_order)
 
     import larf.config
     import larf.util
@@ -251,7 +279,7 @@ def cmd_boundary(ctx, boundary, mesh_id, name):
         boundary = name
 
     ses = ctx.obj['session']
-    meshres = get_result(ses, mesh_id)
+    meshres = larf.store.result(ses, mesh_id)
     grid = larf.mesh.result_to_grid(meshres)
 
     cfg = ctx.obj['cfg']
@@ -277,8 +305,9 @@ def cmd_boundary(ctx, boundary, mesh_id, name):
                  ])
     ses.add(res)
     ses.flush()
-    click.echo("produced solution result #%d" % res.id)
+    #click.echo("produced solution result #%d" % res.id)
     ses.commit()
+    announce_result('boundary', res)
     return
 
 
@@ -306,8 +335,8 @@ def cmd_raster(ctx, raster, boundary_id, name):
     #larf.solve.set_gaussian_quadrature(16,12,4)
     ses = ctx.obj['session']
 
-    potres = get_result(ses, boundary_id)
-    meshres = get_result(ses, potres.parent_id)
+    potres = larf.store.result(ses, boundary_id)
+    meshres = larf.store.result(ses, potres.parent_id)
     grid = larf.mesh.result_to_grid(meshres)
 
     potarrs = potres.array_data_by_name()
@@ -328,14 +357,16 @@ def cmd_raster(ctx, raster, boundary_id, name):
                      arrays = arrays)
         ses.add(res)
         ses.flush()
+        announce_result('raster',res)
         resids.append(res.id)
 
     if resids:
         ses.commit()
-        click.echo("produced raster results: %s" % (', '.join([str(i) for i in resids]), ))
-        return 1
-    click.echo("failed to produce any raster results")
+        #click.echo("produced raster results: %s" % (', '.join([str(i) for i in resids]), ))
+        return
 
+    click.echo("failed to produce any raster results")
+    return -1
 
 @cli.command("velocity")
 @click.option('-m','--method', default='drift', help='Velocity calculation method.')
@@ -356,7 +387,7 @@ def cmd_velocity(ctx, method, raster_id, name):
         return 1
 
     ses = ctx.obj['session']
-    potres = get_result(ses, raster_id)
+    potres = larf.store.result(ses, raster_id)
 
     import larf.util
     meth = larf.util.get_method(methname)
@@ -370,7 +401,8 @@ def cmd_velocity(ctx, method, raster_id, name):
     ses.flush()
     resid = res.id
     ses.commit()
-    click.echo('produced velocity result: %d' % resid)
+    #click.echo('produced velocity result: %d' % resid)
+    announce_result('velocity', res)
 
 @cli.command("step")
 @click.option('-q','--charge', default=1.0, help='The amount of charge to drift.')
@@ -387,8 +419,8 @@ def cmd_step(ctx, charge, time, position, stepper, velocity_id, weighting_id, na
     import larf.drift
 
     ses = ctx.obj['session']
-    velores = get_result(ses, velocity_id)
-    weightres = get_result(ses, weighting_id)
+    velores = larf.store.result(ses, velocity_id)
+    weightres = larf.store.result(ses, weighting_id)
 
     varr = velores.array_data_by_type()
     velo = larf.drift.InterpolatedField(varr['gvector'], varr['mgrid'])
@@ -397,6 +429,7 @@ def cmd_step(ctx, charge, time, position, stepper, velocity_id, weighting_id, na
     stepper = larf.drift.Stepper(velocity, lcar=0.1)
     steps = stepper(time, position)
     print steps
+    #announce_result('step', res)
     return
 
 

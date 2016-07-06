@@ -1,0 +1,31 @@
+#+TITLE: Using LARF interactively
+
+* Overview
+
+The command line program =larf= is very minimal and most LARF functionality is available from the =larf= Python modules.  In =ipython= or another interactive Python session you can exercise most of LARF.
+
+* Loading Results
+
+#+BEGIN_SRC python
+  >>> import larf.store
+  >>> ses = larf.store.session("larf.db")
+  >>> r = larf.store.result(ses, 12)
+  >>> r.array_data_by_type().keys()
+  ... [u'gscalar', u'gvector', u'mgrid']
+#+END_SRC
+
+* Plotting
+
+There are many ways to plot, here are some examples.
+
+** Insta Drift
+
+You can explore drifting in field using mayavi's "flow":
+
+#+BEGIN_SRC python
+  >>> %pylab
+  >>> x,y,z = r.array_data_by_type()['mgrid']
+  >>> u,v,w = r.array_data_by_type()['gvector']
+  >>> from mayavi import mlab
+  >>> flow = mlab.flow(x,y,z, u,v,w, seed_scale=1, seed_resolution=5)
+#+END_SRC

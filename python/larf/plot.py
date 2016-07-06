@@ -7,7 +7,6 @@ import numpy as np
 import matplotlib
 import matplotlib.colors as colors
 from matplotlib import pyplot as plt
-from mayavi import mlab
 import numpy.ma as ma
 
 
@@ -27,12 +26,12 @@ def twodify(mgrid, values, axis, index):
 
 def save_raster_any(result, outfile, axis=1, index=0, **kwds):
     '''
-    Plot a "raster" type result which consists of arrays of type mgrid and values.
+    Plot a "raster" type result which consists of arrays of type mgrid and gscalar.
 
     If result arrays are 3D then plot a slice along given axis at index.
     '''
-    arr = result.array_data_by_name()
-    mgrid,values = arr['mgrid'],arr['values']
+    arrs = result.array_data_by_type()
+    mgrid, values = arrs['mgrid'], arrs['gscalar']
     if mgrid.shape[0] == 3:
         mgrid, values = twodify(mgrid, values, axis, index)
 
@@ -41,10 +40,22 @@ def save_raster_any(result, outfile, axis=1, index=0, **kwds):
     fig,ax = plt.subplots()
     im = ax.pcolor(X, Y, values)
     fig.colorbar(im)
+    plt.title('Scalar Result "%s", ID #%d' % (result.name, result.id))
     plt.savefig(outfile)
     return
 
 
+def maya_raster_any(result, outfile, **kwds):
+    '''
+    Plot a "raster" type result as a 3D scalar using MayaVi.
+    '''
+    from mayavi import mlab
+    arrs = result.array_data_by_type()
+    fx,fy,fz = arrs['gvector']
+    
+    flow = mlab.flow(u,v,w, seed_scale=1)
+    
+    
 
 def mgrid_extent(mgrid):
     xmin = mgrid[0][0][0]
@@ -158,6 +169,8 @@ def field2d(arrs, outfile=None, name=None, title=None, cmap="spectral", limits=(
     return
 
 def field(potential, outfile=None, title="BEM Calculation (field)", cmap="spectral"):
+    from mayavi import mlab
+
     u,v,w = np.gradient(potential)
     obj = mlab.quiver3d(u,v,w, colormap=cmap, vmax=10)
     mlab.colorbar()

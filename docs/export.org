@@ -1,0 +1,45 @@
+#+TITLE: Exporting data from LARF
+
+* Overview
+
+LARF maintains all result data in a simple Sqlite3 database file.  
+For each result its arrays, method name, input parameters and references to input results are stored.
+LARF provides methods to export a result data into a variety of formats.  
+The general command is:
+
+#+BEGIN_EXAMPLE
+$ larf export -o filename.<ext> <id>
+#+END_EXAMPLE
+
+The exporter that is run depends on the file name extension =<ext>= and the type of the result referenced by the =<id>=.
+
+* Numpy Arrays
+
+The main data in a result are numpy arrays.  These arrays can be exported in Numpy's "=.npz=" format.
+
+#+BEGIN_EXAMPLE
+$ larf export -o field.npz <id-of-a-raster-result>
+#+END_EXAMPLE
+
+* VTK
+
+The powerful =mayavi2= and =paraview= applications can take VTK files to display meshes, scalar and vector volumetric data.
+
+#+BEGIN_EXAMPLE
+$ larf export -o mesh.vtk <id-of-a-mesh-result>
+$ larf export -o field.vtk <id-of-a-raster-result>
+#+END_EXAMPLE
+
+* Plots
+
+LARF has some built-in plotting that makes use of =matplotlib= or =mayavi=.  
+Plots are considered just another form of export and are made if a graphical file name extension is used.
+
+#+BEGIN_EXAMPLE
+$ larf -P index=10 export -o capacitor-slice-10.pdf <id-of-a-raster-result>
+#+END_EXAMPLE
+
+Like all export methods, the exact plot type depends on the result type.
+Additional control can be had by providing values for special parameters.
+
+

@@ -1,0 +1,32 @@
+#+TITLE: Speed Performance of LARF
+
+This describes some results of the speed performance of LARF calculations using the [[./speed.sh]] script and [[./larf.cfg]].
+
+* Mesh size.
+
+Using the capacitor test with different characteristic lengths
+(=lcar=) for the mesh.  The number of elements are the number of
+triangles produced.  The times are "real/user" as determined by the
+=time= command for the =larf mesh= and =larf boundary= commands.  The
+latter runs in parallel.  The host is an i7-4790K with 4 cores and times-2 HT.
+
+ | lcar (mm) | elements | mesh (s)  | boundary (s) |
+ |-----------+----------+-----------+--------------|
+ |         1 |    61768 | 2.8/2.5   | 106.5/770.9  |
+ |         5 |     2972 | 0.49/0.39 | 3.0/18.4     |
+ |        10 |      920 | 0.44/0.33 | 0.8/3.9      |
+
+* Rastering
+
+The =larf raster= command evaluates the solution at points in the
+volume.  With each mesh above (identified by its =lcar= value) a 3D
+raster of $500 = 5 \times 10 \times 10$ points and $500000 = 50 \times
+100 \times 100$ points are performed.
+
+| lcar (mm) | "500" (s) | "500K" (s)   |
+|-----------+-----------+--------------|
+|         1 | 6.1/22.8  | 313.8/2291.4 |
+|         5 | 0.49/0.50 | 181.7/1267.3 |
+|        10 | 0.34/0.27 | 85.2/484.2   |
+
+

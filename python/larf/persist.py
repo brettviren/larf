@@ -11,9 +11,81 @@ naming pattern.
 
 import numpy
 
+def mgrid_to_linspace(mg, expand = True):
+    '''
+    Return the linspaces which produced the given meshgrid.
+
+    If expand is False, return each linspace as (min,max,count)
+    '''
+
+    x,y,z = mg
+    x,y,z = x[:,0,0], y[0,:,0], z[0,0,:]
+    if expand:
+        return x,y,z
+    return (x[0],x[-1],len(x)), (y[0],y[-1],len(y)), (z[0],z[-1],len(z))
+
 def save_result_json(result, outfile, **kwds):
     'write me'
     return not_implemented
+
+
+def _save_mgrid_vtk(result, outfile, **kwds):
+    '''
+    Save a result defined on a meshgrid to a VTK file
+    '''
+    from tvtk.api import tvtk
+    from tvtk.api import write_data
+    arrs = result.array_data_by_type()
+    mgrid = arrs['mgrid']
+
+    shape = mgrid[0].shape
+
+    linspaces = mgrid_to_linspace(mgrid, expand=False)
+    origin = list()
+    spacing = list()
+    for ls in linspaces:
+        print "ls: %s" % str(ls)
+        origin.append(ls[0])
+        spacing.append((ls[1]-ls[0])/ls[2])
+    print 'origin: %s' % str(origin)
+    print 'spacing: %s' % str(spacing)
+    print 'dimensions: %s' % str(shape)
+    sp = tvtk.StructuredPoints(spacing=spacing, origin=origin, dimensions=shape)
+
+    scalar = arrs.get('gscalar',None)
+    if scalar is not None:
+        sp.point_data.scalars = scalar.ravel()
+        sp.point_data.scalars.name = "gscalar" # fixme, should use name, not type?
+    vector = arrs.get('gvector',None)
+    if vector is not None:
+        sp.point_data.vectors = numpy.asarray([vector[0].ravel(), vector[1].ravel(), vector[2].ravel()]).T
+        sp.point_data.vectors.name = "gvector"
+
+    write_data(sp, outfile)
+    return
+
+save_raster_vtk = _save_mgrid_vtk
+save_velocity_vtk = _save_mgrid_vtk
+
+def save_mesh_vtk(result, outfile, **kwds):
+    '''
+    Save a mesh result to a VTK file.
+    '''
+    from tvtk.api import tvtk
+    from tvtk.api import write_data
+    arrs = result.array_data_by_type()
+    points = arrs['points']
+    triangles = arrs['triangles']
+    domains = arrs['domains']
+
+    pd = tvtk.PolyData()
+    pd.points = points
+    pd.polys = triangles
+    pd.point_data.scalars = domains
+    pd.point_data.scalars.name = "domains"
+
+    write_data(pd, outfile)
+    return
 
 def save_result_npz(result, outfile, compression=True, **kwds):
     '''
