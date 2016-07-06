@@ -56,12 +56,17 @@ In the example a mesh named "parallel" is to be build from the =parallel()= meth
 
 Note the use of units for distance quantities.  The =larf= supports a limited set of units including length and time.  
 
-** The =solve= category
+** The =boundary= category
 
-This =solve= category simply aggregates two functional categories by naming a configuration section in each:
+This =boundary= category drives solving the full boundary conditions on the mesh.  These solutions consist of the provided potentials (Dirichlet) and the calculated vector gradients (Neumann).  This category also determines if a drift field (=larf.potentials.drift=) or a Shockley-Ramo field (=larf.potentials.weighting=) is to be calculated.  For a drift field a =domain_voltage_map= must be provided.  It is list of ordered pairs giving =(domain, voltage)= or =((min_domain,max_domain), voltage)=.  The =domain= is the domain indices which are specified in the mesh.  For a weighting field a single =domain= index must be specified which will set it to 1V and all others to 0V.  Typically this =domain= index is given on the command line:
 
-- =boundary= :: names a "boundary" category configuration section
-- =raster= :: names a "raster" category configuration section
+#+BEGIN_EXAMPLE
+$ larf -P domain=11 boundary [...]
+#+END_EXAMPLE
+
+** The =raster= category
+
+This category drives evaluating the potential at points in the volume.  The method determines the nature of spanning the volume.  The usual method =larf.raster.linear= will produce a rectilinear grid uniform in each dimension.   It requires a =linspaces= to be provided which is a list of three 3-tuples holding =(min, max, number)=.  The min/max values give the extent of the domain in that dimension and the number gives the number of points.
 
 ** Parameter category
 
