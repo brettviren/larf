@@ -121,8 +121,22 @@ def cmd_config(ctx):
     
 
 @cli.command("list")
+@click.option("-a","--arrays", is_flag=True, default=False,
+              help="Display array info")
+@click.option("-p","--params", is_flag=True, default=False,
+              help="Display parameters")
+@click.option("-r","--result-id", default=None, type=int,
+              help="Focus on one result ID")
+@click.option("-n","--name", default=None, type=str,
+              help="Show results for matching name")
+@click.option("-t","--type", default=None, type=str,
+              help="Show results for matching type")
+@click.option("--result-format", default=None, type=str,
+              help="Use format template to display each result")
+@click.option("--array-format", default=None, type=str,
+              help="Use format template to display each array")
 @click.pass_context
-def cmd_list(ctx):
+def cmd_list(ctx, arrays, params, result_id, name, type, result_format, array_format):
     '''
     List accumulated results.
 
@@ -132,14 +146,51 @@ def cmd_list(ctx):
     import pprint
 
     ses = ctx.obj['session']
+    res = ses.query(Result)
+    if result_id is not None:
+        res = res.filter_by(id = result_id)
+    if name is not None:
+        res = res.filter(Result.name.like("%{0}%".format(name)))
+    if type is not None:
+        res = res.filter(Result.type.like("%{0}%".format(type)))
+    results = res.all()
+
+    if result_format is None:
+        result_format="result:{id} parent:{parent_id} {created} type:{type} name:{name}"
+        if params:
+            result_format += "{param_lines}"
+        if arrays:
+            result_format += "{array_lines}"
+    if array_format is None:
+        array_format = "  array:{id} type:{type} name:{name} dtype:{dtype} shape:{shape}"
+
     # fixme: might be nice to make this spaced out prettier
-    for res in ses.query(Result).all():
-        arrstr = ','.join(["%s%s" % (a.name, str(a.data.shape)) for a in res.arrays])
-        click.echo('result:%d parent:%d %s type:%-10s name:%-12s' % (res.id, res.parent_id or 0, res.created, res.type, res.name))
-        click.echo("  params: %s" % pprint.pformat(res.params, indent=2))
-        for arr in res.arrays:
-            click.echo("  array:%d type:%-12s name:%-12s dtype:%-8s shape:%s" % (arr.id, arr.type, arr.name, arr.data.dtype, arr.data.shape))
-        click.echo()
+    for res in results:
+
+        array_lines = list()
+        if arrays:
+            for arr in res.arrays:
+                dat = dict(id=arr.id, type=arr.type, name=arr.name, dtype=arr.data.dtype, shape=str(arr.data.shape))
+                array_lines.append(array_format.format(**dat))
+        array_lines = '\n'.join(array_lines)
+        
+        param_lines = ""
+        if params:
+            param_lines = "  params: %s" % pprint.pformat(res.params, indent=2)
+
+        dat = dict(param_lines = param_lines, array_lines = array_lines,
+                   id = res.id, parent_id = res.parent_id or 0,
+                   created = res.created, type = res.type, name = res.name)
+        one = result_format.format(**dat)
+        click.echo(one)
+        
+
+        # arrstr = ','.join(["%s%s" % (a.name, str(a.data.shape)) for a in res.arrays])
+        # click.echo('result:%d parent:%d %s type:%-10s name:%-12s' % (res.id, res.parent_id or 0, res.created, res.type, res.name))
+        # click.echo("  params: %s" % pprint.pformat(res.params, indent=2))
+        # for arr in res.arrays:
+        #     click.echo("  array:%d type:%-12s name:%-12s dtype:%-8s shape:%s" % (arr.id, arr.type, arr.name, arr.data.dtype, arr.data.shape))
+        # click.echo()
 
 @cli.command("export")
 @click.option('-o','--output', help='Set output file.')
@@ -423,12 +474,22 @@ def cmd_step(ctx, charge, time, position, stepper, velocity_id, weighting_id, na
     weightres = larf.store.result(ses, weighting_id)
 
     varr = velores.array_data_by_type()
-    velo = larf.drift.InterpolatedField(varr['gvector'], varr['mgrid'])
+    vfield = varr['gvector']
+    velo = larf.drift.InterpolatedField(vfield, varr['mgrid'])
     def velocity(notused, r):
         return velo(r)
+
+    warr = weightres.array_data_by_type()
+    wfield = varr['gvector']
+    current = charge * larf.drift.dot(wfield, vfield)
+
     stepper = larf.drift.Stepper(velocity, lcar=0.1)
-    steps = stepper(time, position)
+    steps = stepper(time, position, visitor = larf.drif.LookupVisitor(current))
     print steps
+
+
+
+    #ses.commit(), etc
     #announce_result('step', res)
     return
 
