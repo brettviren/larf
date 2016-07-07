@@ -5,7 +5,7 @@ Mid level interface to result persistence.
 
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
-
+from sqlalchemy import desc
 import larf.models
 
 
@@ -21,12 +21,41 @@ def session(database = 'sqlite:///:memory:'):
     return Session()
 
 def result(ses, resid):
-    from larf.models import Result
-    res = ses.query(Result).filter_by(id = resid)
+    res = results(ses).filter_by(id = resid)
     if not res:
         raise ValueError("No such result ID %d" % resid)
     return res.one()
     
+
+def results(ses):
+    return ses.query(larf.models.Result)
+
+
+def result_typed(ses, type, ident=None):
+    '''
+    Return a result of the given type or None.
+
+    If ident is given and is an integer then that result is returned.
+
+    If ident is a string then the most recent result of that name (and type) is returned.
+
+    if ident is None then the most recent result of the given type is returned.
+    '''
+    r = results(ses).filter_by(type=type)
+
+    if ident is None:
+        return r.order_by(desc(larf.models.Result.created)).first()
+
+    try:
+        result_id = int(ident)
+    except ValueError:
+        pass
+    else:
+        return r.filter_by(id = ident).one()
+
+    return r.filter_by(name=ident).order_by(desc(larf.models.Result.created)).first()
+
+
 
 
 def _result(ses, resid=None, type=None, name=None, **kwds):

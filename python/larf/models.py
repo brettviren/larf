@@ -46,7 +46,13 @@ class JSONBLOB(types.TypeDecorator):
     def copy(self, **kw):
         return JSONBLOB(self.impl.length)    
 
-result_types = ['mesh','boundary','raster','velocity','step']
+result_types = [
+    'mesh',
+    'boundary',
+    'raster',
+    'velocity',
+    'stepping',
+]
 
 class Result(Base):
     __tablename__ = 'results'
@@ -80,6 +86,7 @@ array_types = [
     'path',      # N-ordered points (t,x,y,z) in 4-space (N_path, 4)
     'pscalar',   # scalar value defined at points on path (N_path,)
     'ptuple',    # tuple of n values defined at points on path (N_path, n)
+    'steps',     # (N_path, N_steps+1, 4) arrays holding 4-points (x,y,z,t) along step paths.
 ]
 class Array(Base):
     __tablename__ = 'arrays'

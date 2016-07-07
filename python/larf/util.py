@@ -72,3 +72,23 @@ def expand_tuple_list(d):
         for ind in k:
             ret[ind] = v
     return ret
+
+def mgrid_to_linspace(mg, expand = True):
+    '''
+    Return the linspaces which produced the given meshgrid.
+
+    If expand is False, return each linspace as (min,max,count)
+
+    @param mg: a an object like returned by numpy.meshgrid()
+
+    @param expand: True will return objects like returned by
+        numpy.linspace(), false will return objects like given to
+        numpy.linspace(*obj)
+    '''
+
+    x,y,z = mg
+    x,y,z = x[:,0,0], y[0,:,0], z[0,0,:]
+    if expand:
+        return x,y,z
+    return (x[0],x[-1],len(x)), (y[0],y[-1],len(y)), (z[0],z[-1],len(z))
+

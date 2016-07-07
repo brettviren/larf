@@ -10,19 +10,7 @@ naming pattern.
 '''
 
 import numpy
-
-def mgrid_to_linspace(mg, expand = True):
-    '''
-    Return the linspaces which produced the given meshgrid.
-
-    If expand is False, return each linspace as (min,max,count)
-    '''
-
-    x,y,z = mg
-    x,y,z = x[:,0,0], y[0,:,0], z[0,0,:]
-    if expand:
-        return x,y,z
-    return (x[0],x[-1],len(x)), (y[0],y[-1],len(y)), (z[0],z[-1],len(z))
+from larf.util import mgrid_to_linspace
 
 def save_result_json(result, outfile, **kwds):
     'write me'

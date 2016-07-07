@@ -10,7 +10,7 @@ import click
 import numpy
 
 import larf.store
-
+from larf import units
 
 @click.group()
 @click.option('-c', '--config', default='larf.cfg', help = 'Set configuration file.')
@@ -125,11 +125,11 @@ def cmd_config(ctx):
               help="Display array info")
 @click.option("-p","--params", is_flag=True, default=False,
               help="Display parameters")
-@click.option("-r","--result-id", default=None, type=int,
+@click.option("-r","--result-id", type=int, multiple=True,
               help="Focus on one result ID")
-@click.option("-n","--name", default=None, type=str,
+@click.option("-n","--name", type=str, multiple=True,
               help="Show results for matching name")
-@click.option("-t","--type", default=None, type=str,
+@click.option("-t","--type", type=str, multiple=True,
               help="Show results for matching type")
 @click.option("--result-format", default=None, type=str,
               help="Use format template to display each result")
@@ -147,22 +147,23 @@ def cmd_list(ctx, arrays, params, result_id, name, type, result_format, array_fo
 
     ses = ctx.obj['session']
     res = ses.query(Result)
-    if result_id is not None:
-        res = res.filter_by(id = result_id)
-    if name is not None:
-        res = res.filter(Result.name.like("%{0}%".format(name)))
-    if type is not None:
-        res = res.filter(Result.type.like("%{0}%".format(type)))
+    if result_id:
+        res = res.filter(Result.id.in_(result_id))
+    if name:
+        res = res.filter(Result.name.in_(name))
+    if type:
+        res = res.filter(Result.type.in_(type))
     results = res.all()
 
     if result_format is None:
-        result_format="result:{id} parent:{parent_id} {created} type:{type} name:{name}"
+        #result_format="result:{id} parent:{parent_id} {created} type:{type} name:{name}"
+        result_format="{id:<4} {parent_id:<4} {type:<12}{name:<12}\t{created}"
         if params:
-            result_format += "{param_lines}"
+            result_format += "\n{param_lines}"
         if arrays:
-            result_format += "{array_lines}"
+            result_format += "\n{array_lines}"
     if array_format is None:
-        array_format = "  array:{id} type:{type} name:{name} dtype:{dtype} shape:{shape}"
+        array_format = "{id:4} {dtype:<8} {type:<12} {name:<12} {shape}"
 
     # fixme: might be nice to make this spaced out prettier
     for res in results:
@@ -246,14 +247,18 @@ def announce_result(type, res):
 
 @cli.command("mesh")
 @click.option('-m','--mesh',
-              help='Set "mesh" section in the configuration file to use.')
+              help='The "[mesh]" configuration file section.')
 @click.argument('name')
 @click.pass_context
 def cmd_mesh(ctx, mesh, name):
     '''
     Produce a mesh.
 
-    Result is stored with given name.
+    Result is stored with given name.  
+
+    If no explicit "[mesh]" configuration file section is given then
+    the one with the same name as supplied for the result is tried.
+
     '''
     import larf.config
     import larf.util
@@ -304,16 +309,18 @@ def cmd_mesh(ctx, mesh, name):
     return
 
 
+
+
 @cli.command("boundary")
-@click.option('-b', '--boundary',  
-              help='Set the "boundary" section in the configuration file to use')
-@click.option('-m', '--mesh-id', required=True, type=int,
-              help='Set the result ID of the mesh to use')
+@click.option('-b', '--boundary',
+              help='The "[boundary]" configuration file section.')
+@click.option('-m', '--mesh', default=None,
+              help='The "mesh" result to use (id or name, default=use most recent).')
 @click.option('-q', '--quadrature-order-multiplier', default=1, type=int,
-              help='Set the precision order for Gaussian quadrature.')
+              help='Precision factor to apply to Gaussian quadrature orders.')
 @click.argument('name')
 @click.pass_context
-def cmd_boundary(ctx, boundary, mesh_id, quadrature_order_multiplier, name):
+def cmd_boundary(ctx, boundary, mesh, quadrature_order_multiplier, name):
     '''
     Solve surface boundary potentials.
     '''
@@ -330,7 +337,7 @@ def cmd_boundary(ctx, boundary, mesh_id, quadrature_order_multiplier, name):
         boundary = name
 
     ses = ctx.obj['session']
-    meshres = larf.store.result(ses, mesh_id)
+    meshres = larf.store.result_typed(ses, 'mesh', mesh)
     grid = larf.mesh.result_to_grid(meshres)
 
     cfg = ctx.obj['cfg']
@@ -342,9 +349,7 @@ def cmd_boundary(ctx, boundary, mesh_id, quadrature_order_multiplier, name):
     meth = larf.util.get_method(methname)
 
     dirichlet_data = meth(**methparams)
-    print dirichlet_data
-
-
+    #print dirichlet_data
     
     dfun, nfun = larf.solve.boundary_functions(grid, dirichlet_data)
 
@@ -365,12 +370,12 @@ def cmd_boundary(ctx, boundary, mesh_id, quadrature_order_multiplier, name):
 
 @cli.command("raster")
 @click.option('-r','--raster',  
-              help='Set "raster" section in the configuration file to use.')
-@click.option('-b','--boundary-id', required=True, type=int,
-              help='Set the result ID of the boundary potential to use.')
+              help='The "[raster]" configuration file section.')
+@click.option('-b','--boundary', default=None,
+              help='The "boundary" result to use.')
 @click.argument('name')
 @click.pass_context
-def cmd_raster(ctx, raster, boundary_id, name):
+def cmd_raster(ctx, raster, boundary, name):
     '''
     Evaluate a solution on a grid of points.
     '''
@@ -386,7 +391,7 @@ def cmd_raster(ctx, raster, boundary_id, name):
     #larf.solve.set_gaussian_quadrature(16,12,4)
     ses = ctx.obj['session']
 
-    potres = larf.store.result(ses, boundary_id)
+    potres = larf.store.result_typed(ses, 'boundary', boundary)
     meshres = larf.store.result(ses, potres.parent_id)
     grid = larf.mesh.result_to_grid(meshres)
 
@@ -420,12 +425,13 @@ def cmd_raster(ctx, raster, boundary_id, name):
     return -1
 
 @cli.command("velocity")
-@click.option('-m','--method', default='drift', help='Velocity calculation method.')
-@click.option('-r','--raster-id', required=True, type=int,
-              help='Set the result ID of the rastered potential to use.')
+@click.option('-m','--method', default='drift',
+              help='Velocity calculation method.')
+@click.option('-r','--raster', default=None,
+              help='The input raster result.')
 @click.argument('name')
 @click.pass_context
-def cmd_velocity(ctx, method, raster_id, name):
+def cmd_velocity(ctx, method, raster, name):
     '''
     Calculation a velocity vector field.
     '''
@@ -438,7 +444,8 @@ def cmd_velocity(ctx, method, raster_id, name):
         return 1
 
     ses = ctx.obj['session']
-    potres = larf.store.result(ses, raster_id)
+    import larf.store
+    potres = larf.store.result_typed(ses, 'raster', raster)
 
     import larf.util
     meth = larf.util.get_method(methname)
@@ -456,6 +463,50 @@ def cmd_velocity(ctx, method, raster_id, name):
     announce_result('velocity', res)
 
 @cli.command("step")
+@click.option('-s', '--step', 
+              help='The "[step]" configuration file section.')
+@click.option('-v', '--velocity', default = None,
+              help='The input velocity result.')
+@click.argument('name')
+@click.pass_context
+def cmd_step(ctx, step, velocity, name):
+    import larf.store
+    from larf.models import Result,Array
+
+    if step is None:
+        step = name
+
+    cfg = ctx.obj['cfg']
+    tocall = larf.config.methods_params(cfg, 'step %s' % step)
+    
+    ses = ctx.obj['session']
+    velores= larf.store.result_typed(ses, 'velocity', velocity)
+    varr = velores.array_data_by_type()
+    vfield = varr['gvector']
+    mgrid = varr['mgrid']
+
+
+    par = ctx.obj['params']
+    all_steps = list()
+    
+    # Fixme: allow for multiple methods
+    methname, params = tocall[0]
+    meth = larf.util.get_method(methname)
+    params.update(par)
+    arr = meth(vfield, mgrid, **params)
+    all_steps.append(arr)
+    steps = numpy.vstack(all_steps)
+    res = Result(name=name, type='stepping', parent=velores,
+                 params=dict(method=methname, params=params),
+                 arrays=[Array(name='steps', type='steps', data=steps)])
+    ses.add(res)
+    ses.flush()
+    resid = res.id
+    ses.commit()
+    announce_result('steps', res)
+    return
+
+@cli.command("current")
 @click.option('-q','--charge', default=1.0, help='The amount of charge to drift.')
 @click.option('-t','--time', default=0.0, help='Staring time of drift.')
 @click.option('-r','--position', default="0,0,0", help='Starting position.')
@@ -466,7 +517,7 @@ def cmd_velocity(ctx, method, raster_id, name):
               help='Set the result ID of the weighting field to use')
 @click.argument('name')
 @click.pass_context
-def cmd_step(ctx, charge, time, position, stepper, velocity_id, weighting_id, name):
+def cmd_current(ctx, charge, time, position, stepper, velocity_id, weighting_id, name):
     import larf.drift
 
     ses = ctx.obj['session']

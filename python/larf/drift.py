@@ -72,15 +72,34 @@ def dot(field1, field2):
 def mag(field):
     return numpy.sqrt(dot(field,field))
 
+# fixme: too much copy-paste between Field and Gradient
 class Field(object):
     '''
     An interpolated N-dimensional vector field
     '''
-    def __init__(self, field, mgrid):
+    def __init__(self, field, linspaces):
         '''
         Create an interpolated N-dimensional vector field from the given field and its mgrid.
         '''
-        pass
+        self.field = field
+        self.linspaces = linspaces
+        self.interps = tuple([RegularGridInterpolator(linspaces, c) for c in field])
+        return
+
+    def __call__(self, *point):
+        '''
+        Return the gradient at the point.
+
+        @param point: the point in space at which to evaluate gradient
+        @type point: N-dimensional sequence of coordinates or N coordinates as individual arguments
+        @return: N-dimensional array -- the components of the gradient at the given point
+        '''
+        if isinstance(point[0],list) or isinstance(point[0],tuple):
+            point = point[0]
+        point = numpy.asarray(point)
+        ret = numpy.asarray([interp(point)[0] for interp in self.interps])
+        return ret
+
 
 class Gradient(object):
     def __init__(self, scalar, points):
@@ -307,7 +326,7 @@ class BoundPrecision(object):
 
 
 class StuckDetection(object):
-    def __init__(self, distance=0.01, nallowed=1):
+    def __init__(self, distance=0.1*units.mm, nallowed=1):
         '''
         Create a StuckDetection object.
 
@@ -329,6 +348,7 @@ class StuckDetection(object):
         self.nstuck += 1
         if self.nstuck <= self.nallowed:
             return False
+        print 'stuck at %f,%s -> %f,%s' % (t1,r1,t2,r2)
         return True
 
 class CollectSteps(object):
@@ -389,6 +409,8 @@ class CollectSteps(object):
 
         @type: list of N-array
         '''
+        if not self.steps:
+            return None
         p = [s.r1 for s in self.steps]
         p.append(self.steps[-1].r2)
         return p
@@ -400,6 +422,8 @@ class CollectSteps(object):
 
         @type: list of float
         '''
+        if not self.steps:
+            return None
         t = [s.t1 for s in self.steps]
         t.append(self.steps[-1].t2)
         return t
@@ -418,7 +442,21 @@ class CollectSteps(object):
             ret.append(dist)
         return ret
 
+    @property
+    def array(self):
+        '''
+        Return array of shape (N+1,4).  Layout of last dimension is (x,y,z,t).
+        '''
+        if not self.steps:
+            return numpy.ndarray((0,4), dtype=float)
+        p = numpy.asarray(self.points)
+        t = numpy.asarray(self.times)
+        return numpy.vstack((p.T,t.T)).T
+        
     def __str__(self):
+        if not self.steps:
+            return "0 steps"
+
         t = self.times
         mint = min(t)
         maxt = max(t)
@@ -529,3 +567,21 @@ class Stepper(object):
 
         return visitor
 
+
+
+def stepping(vfield, mgrid, time=0, position=(0,0,0), stepper='rkck', lcar=0.1*units.mm, stuck=0.01*units.mm, **kwds):
+    '''
+    Step points through vfield starting a given time and position.
+    '''
+
+    import larf.util
+    linspaces = larf.util.mgrid_to_linspace(mgrid)
+    velo = Field(vfield, linspaces)
+    def velocity(notused, r):
+        return velo(r)
+
+    step_fun = 'larf.drift.step_%s' % stepper
+    step_fun = larf.util.get_method(step_fun)
+    stepper = Stepper(velocity, lcar=lcar, step_fun=step_fun)
+    visitor = stepper(time, position, CollectSteps(StuckDetection(distance=stuck)))
+    return visitor.array

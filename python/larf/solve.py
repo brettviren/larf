@@ -11,9 +11,9 @@ def boundary_functions(grid, boundary_potential):
     piecewise_const_space, piecewise_lin_space = spaces(grid)
 
     t2 = now()
-    print 'DoFs: const=%d linear=%d in %.1f sec' % (piecewise_const_space.global_dof_count,
-                                                    piecewise_lin_space.global_dof_count,
-                                                    t2-t1)
+    print 'space DoFs: const=%d linear=%d' % (piecewise_const_space.global_dof_count,
+                                              piecewise_lin_space.global_dof_count)
+                                         
 
     identity = bempp.api.operators.boundary.sparse.identity(
         piecewise_lin_space, piecewise_lin_space, piecewise_const_space)
@@ -33,7 +33,7 @@ def boundary_functions(grid, boundary_potential):
 
     t4 = now()
 
-    print 'Made boundary function in %.1f sec' % (t4-t3,)
+    #print 'Made boundary function in %.1f sec' % (t4-t3,)
 
     print 'Evaluating integral equation'
     rhs = (.5*identity+dlp)*dirichlet_fun

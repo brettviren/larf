@@ -45,4 +45,6 @@ def methods_params(cfg, section, methods=None, recurse_key = None, **kwds):
         for daughter in listify(recur):
             ret += methods_params(cfg, '%s %s' % (sectype, daughter), recurse_key=recurse_key, **kwds)
 
+    if not ret:
+        raise KeyError, 'no methods to call for section "[%s]"' % section
     return ret

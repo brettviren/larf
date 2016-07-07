@@ -26,7 +26,7 @@ class drift(object):
         self.dvm = larf.util.expand_tuple_list(domain_voltage_map)
         if not self.dvm:
             raise ValueError("Need a domain-voltage mapping")
-        print "Domain voltage map:", str(self.dvm)
+        print "drift domain voltage map:", str(self.dvm)
         self.ntot = 0
         self.nset = 0
         self.counts = defaultdict(int)
@@ -49,4 +49,4 @@ class drift(object):
     def __str__(self):
         f = ', '.join(["%s:%s" %(k,v) for k,v in sorted(self.counts.items())])
         m = ', '.join(["%s:%s" %(k,v) for k,v in sorted(self.unknown.items())])
-        return 'domains given: %d, set: %d, tried: %d\nfound:%s\nmissed:%s' % (len(self.dvm), self.nset, self.ntot,f,m)
+        return 'domains given: %d, set: %d, tried: %d\n\tfound:%s\n\tmissed:%s' % (len(self.dvm), self.nset, self.ntot,f,m)

@@ -1,46 +1,159 @@
 #+TITLE: Running =larf=
 
-* Overview
+* Generalities
 
-LARF calculations are run through the =larf= command line.  
-Each possible calculation is in a particular category and has a specific, associated sub-command.
-Calculations consume and produce zero or more /results/.  
-A result consist of zero or more /arrays/ produced by the calculation and a collection or input /parameters/.
-Results are stored in an Sqlite3 database file (see doc on [[./export.org][exporting]] for how to get results in other formats).  
-Each new result is given an unique result ID number.
-This number is used to look up a result and provide it as input to a subsequent calculation.
-Results can be exported from the database file in various formats including visualization.
-Many calculations rely on a configuration file to specify their input parameters.
-Be default the configuration file =larf.cfg= is used and the database file =larf.db= is used.
-Either file may be explicitly specified to the =larf= command line program.
+To know how to run LARF one must understand how it's composed.
+Here gives names to and relationships between the components of LARF.
+
+** Calculations
+
+LARF functionality is organized into a set of dependent /categories of
+calculation/.  Each category is identified with a major step in
+solving some overall problem.  For example, most problems start with a
+"mesh" calculation and follow with a calculation of the boundary
+conditions.
+
+A category of calculation is accessed by a =larf= sub-command.  For
+example a "mesh" calculation is performed with the =larf mesh=
+command.  The category name is also used to identify the configuration
+file section providing input parameters.  More information on
+configuration is in the [[./config.org]] section.
+
+** Method prototypes
+
+Each calculation category has an associated method prototype and
+calling protocol which determines how actual Python code is called to
+perform that particular calculation.  A calculation may involve
+repeated calls to one or more Python methods.
+
+The prototype to which they adhere determines what information must be
+provided and what is returned.  Prototypes take zero or more /results/
+(described below), a number of prototype-specific keyword arguments
+and a number of method-specific keyword arguments.  Methods are
+expected to return a category-specific value.
+
+FIXME: for now =cli.py= handles too much interface mush involved in
+forming a =Result= object.  Push this into the =larf= modules and
+regularize the calling protocol better.
+
+** Results
+
+Each calculation produces a single /result/.  A result has the following attributes
+
+- id :: a unique numerical identifier for the result
+- parent_id :: the identifiers of all results used as input to produce this one
+- type :: identifies the calculation category ("mesh", "boundary", "raster", etc)
+- name :: a human readable label, potentially not unique. 
+- timestamp :: when the result was produced
+- params :: a dictionary of input parameters given to the calculation
+- arrays :: a collection of /arrays/ (described below) which comprise the main data of the result
+
+Uniqueness is in the context of the associated =results= table in a LARF store (Sqlite3 DB file).
+
+** Params
+
+All non-result information that is given to a calculation is captured
+as a set of named parameters.  Along with the input results it should
+be possible to reproduce any result.  The schema any parameter set
+must follow depends on the calculation category and the exact set of
+methods employed.  Where different methods expect different
+parameters, they must tolerate being given a union of all calculation
+parameters.  They must ignore any that are not expected, allow for
+some to be shared and avoid conflicting ones.
+
+** Arrays
+
+Last but not least, each result has a number of arrays.  Arrays have the following attributes:
+
+- id :: a unique numerical identifier for the array
+- name :: a human readable label, potentially not unique. 
+- type :: a label indicating how the array should be interpreted
+- data :: a Numpy array
+
+Uniqueness is in the context of the associated =arrays= table in a LARF store (Sqlite3 DB file).
 
 * Example
 
-As an example, the provided =larf.cfg= is used to calculate a drift velocity field for a geometry of a simple parallel plane capacitor.
+Enough generalities and on to some actual calculations.  The provided
+=larf.cfg= file can be used to calculate a drift velocity field for a
+geometry of a simple parallel plane capacitor.   The following examples are wrapped up into [[../tests/test_capacitor.sh][this test script]].
+
+First, decide on a database file.  Either start fresh with no default database file:
 
 #+BEGIN_EXAMPLE
-  $ rm -f larf.db
-  $ larf mesh capacitor
-  $ larf boundary -m 1 capdrift
-  $ larf raster -b 2 special
-  $ larf velocity -r 3 special
-  $ larf list
-
-  result:1 parent:0 2016-07-01 15:30:57.367264 type:mesh       name:capacitor   
-    array:1 type:domains      name:domains      dtype:float64  shape:(4240,)
-    array:2 type:points       name:points       dtype:float64  shape:(2124, 3)
-    array:3 type:triangles    name:triangles    dtype:int64    shape:(4240, 3)
-
-  result:2 parent:1 2016-07-01 15:31:24.955436 type:boundary   name:capdrift    
-    array:4 type:coeff        name:dirichlet    dtype:float64  shape:(2124,)
-    array:5 type:coeff        name:neumann      dtype:float64  shape:(4240,)
-
-  result:3 parent:2 2016-07-01 15:32:34.170297 type:raster     name:special     
-    array:6 type:gscalar      name:potential    dtype:float64  shape:(40, 3, 40)
-    array:7 type:mgrid        name:domain       dtype:float64  shape:(3, 40, 3, 40)
-
-  result:4 parent:3 2016-07-01 15:34:08.496289 type:velocity   name:special     
-    array:8 type:mgrid        name:domain       dtype:float64  shape:(3, 40, 3, 40)
-    array:9 type:gvector      name:velocity     dtype:float64  shape:(3, 40, 3, 40)
+  $ rm lart.db
 #+END_EXAMPLE
 
+Or, explicitly give some database file as an argument in the subsequent commands:
+
+#+BEGIN_EXAMPLE
+  $ larf -s mylarfproject.db [...]
+#+END_EXAMPLE
+
+Now, run through the four calculations.  First make a mesh and save the result to the name =capacitor=.  Because we do not explicitly name =[mesh]= configuration section the command assumes we want one by the same name and =[mesh capacitor]= is used.
+
+#+BEGIN_EXAMPLE
+  $ larf mesh capacitor
+  mesh result id 1
+#+END_EXAMPLE
+
+Next calculate the boundary conditions and save the result to the name =capdrift=.  Again, the assumption is that we want a =[boundary]= section of the same name.  As input we use the the mesh calculated in the previous step.  This is not named because by default the most recent result of type =mesh= is used.
+
+#+BEGIN_EXAMPLE
+  $ larf boundary capdrift
+  drift domain voltage map: {1: -5000.0, 2: 5000.0}
+  space DoFs: const=920 linear=464
+  Evaluating integral equation
+          in 0.3 sec
+  domains given: 2, set: 2760, tried: 2760
+          found:1:1380, 2:1380
+          missed:
+  Solving boundary integral equation
+          in 0.2 sec
+  boundary result id 2
+#+END_EXAMPLE
+
+We could have listed the mesh explicitly by result ID or by name like:
+
+#+BEGIN_EXAMPLE
+  $ larf boundary -m 1 capdrift
+  # or
+  $ larf boundary -m capacitor capdrift
+#+END_EXAMPLE
+
+Next we evaluate the boundary solution throughout the volume on a raster of points.  Here we use an explicitly named =[raster capacitor]= section different than the result name.
+
+#+BEGIN_EXAMPLE
+  $ larf raster -r capacitor capdrift
+  raster result id 3
+#+END_EXAMPLE
+
+The last step in the example is to calculate a drift velocity based on the raster potential from the previous step.  As before, this calculation knows it needs a "raster" result and will take the most recent one found in the store.
+
+#+BEGIN_EXAMPLE
+  $ larf velocity velocity capvelo
+  velocity result id 4
+#+END_EXAMPLE
+
+At any point we can query what is in the store:
+
+#+BEGIN_EXAMPLE
+  $ larf list
+  1    0    mesh        capacitor         2016-07-07 10:32:18.027677
+  2    1    boundary    capdrift          2016-07-07 10:32:22.949892
+  3    2    raster      capdrift          2016-07-07 10:36:28.715293
+  4    3    velocity    capvelo           2016-07-07 12:40:42.188610
+
+  $ larf list -a -p -t mesh
+  1    0    mesh        capacitor         2016-07-07 10:32:18.027677
+    params: [ { u'method': u'larf.electrode.cpa',
+      u'params': { u'dx': 1, u'dy': 20, u'dz': 20, u'lcar': 5, u'offsetx': 21}},
+    { u'method': u'larf.electrode.cpa',
+      u'params': { u'dx': 1, u'dy': 20, u'dz': 20, u'lcar': 5, u'offsetx': -21}}]
+     1 int64    domains      domains      (920,)
+     2 float64  points       points       (464, 3)
+     3 int32    triangles    triangles    (920, 3)
+
+#+END_EXAMPLE
+
+The simple version lists info about all results.  The second example shows how to list info about arrays (=-a=) and parameters (=-p=) for results of one type (=-t mesh=).
