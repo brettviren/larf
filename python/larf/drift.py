@@ -585,3 +585,57 @@ def stepping(vfield, mgrid, time=0, position=(0,0,0), stepper='rkck', lcar=0.1*u
     stepper = Stepper(velocity, lcar=lcar, step_fun=step_fun)
     visitor = stepper(time, position, CollectSteps(StuckDetection(distance=stuck)))
     return visitor.array
+
+def substepping(p1, step, dt):
+    '''
+    Return intermediate 4-points starting at p1 and stepping along
+    4-step with with approximate time step dt.  Actual time step will
+    be near dt such that an integral number of substeps cover the
+    step.  If dt is larger than step, just [p1] is returned.
+    '''
+    velo = step[:3]/step[3]
+    n = int(step[3]/dt)
+    if n < 1:
+        return [p1]
+    dt = step[:3][0]/dt
+
+    velo = dt*numpy.hstack((velo, 1.0))
+    return [p1 + i*velo for i in range(n)]
+    
+
+def current(steps, wfield, mgrid, tick=0.5*units.us, charge=1.0, **kwds):
+    '''
+    Sample steps in the presence of a weighting field to produce a
+    waveform giving instantaneous current.
+    '''
+    import larf.util
+    linspaces = larf.util.mgrid_to_linspace(mgrid)
+    weight = Field(wfield, linspaces)
+
+
+    tstart = steps[0][-1]
+    tstop = steps[-1][-1]
+    nticks = int((tstop-tstart)/tick)
+
+    waveform = numpy.asarray([0.0]*nticks)
+    number = numpy.asarray([0.0]*nticks)
+    def fill(pt, value):
+        t = pt[0]
+        ind = int((tstart-t)/tick)
+        if ind < 0:
+            return
+        if ind >= nticks:
+            return
+        waveform[ind] += value
+        number[ind] += 1
+
+    for istep, p1 in enumerate(steps[:-1]):
+        p2 = steps[istep+1]
+        step = p2-p1
+        velo = step[:3]/step[3]
+
+        for p in substepping(p1, step, tick):
+            Ew = weight(p)
+            cur = charge * numpy.dot(Ew, velo)
+            fill(p, cur)
+    return numpy.asarray([(tstart+i*tick, waveform[i]/number[i]) for i in range(nticks) if number[i]])

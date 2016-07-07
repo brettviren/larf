@@ -470,6 +470,9 @@ def cmd_velocity(ctx, method, raster, name):
 @click.argument('name')
 @click.pass_context
 def cmd_step(ctx, step, velocity, name):
+    '''
+    Step through a velocity field.
+    '''
     import larf.store
     from larf.models import Result,Array
 
@@ -484,7 +487,6 @@ def cmd_step(ctx, step, velocity, name):
     varr = velores.array_data_by_type()
     vfield = varr['gvector']
     mgrid = varr['mgrid']
-
 
     par = ctx.obj['params']
     all_steps = list()
@@ -507,28 +509,36 @@ def cmd_step(ctx, step, velocity, name):
     return
 
 @cli.command("current")
-@click.option('-q','--charge', default=1.0, help='The amount of charge to drift.')
-@click.option('-t','--time', default=0.0, help='Staring time of drift.')
-@click.option('-r','--position', default="0,0,0", help='Starting position.')
-@click.option('-s', '--stepper', default='rkck', help='Set the stepper.')
-@click.option('-v', '--velocity-id', required=True, type=int,
-              help='Set the result ID of the velocity field to use')
-@click.option('-w', '--weighting-id', required=True, type=int,
-              help='Set the result ID of the weighting field to use')
+@click.option('-c', '--current', 
+              help='The "[current]" configuration file section.')
+@click.option('-s', '--steps',
+              help='The input steps.')
+@click.option('-w', '--weighting', 
+              help='The input weighting field')
 @click.argument('name')
 @click.pass_context
-def cmd_current(ctx, charge, time, position, stepper, velocity_id, weighting_id, name):
-    import larf.drift
+def cmd_current(ctx, current, steps, weighting, name):
+    '''
+    Convert steps to electrode current as a function of time
+    '''
+    import larf.store
+    import larf.config
+
+    cfg = ctx.obj['cfg']
+    tocall = larf.config.methods_params(cfg, 'current %s' % current)
 
     ses = ctx.obj['session']
-    velores = larf.store.result(ses, velocity_id)
-    weightres = larf.store.result(ses, weighting_id)
+    stepres= larf.store.result_typed(ses, 'stepping', steps)
+    steps = stepres.array_data_by_type()['steps']
 
-    varr = velores.array_data_by_type()
-    vfield = varr['gvector']
-    velo = larf.drift.InterpolatedField(vfield, varr['mgrid'])
-    def velocity(notused, r):
-        return velo(r)
+    weightres= larf.store.result_typed(ses, 'raster', weighting)
+    warr = weightres.array_data_by_type()
+    wfield = warr['gvector']
+    mgrid = warr['mgrid']
+    
+
+
+
 
     warr = weightres.array_data_by_type()
     wfield = varr['gvector']
