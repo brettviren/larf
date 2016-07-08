@@ -634,5 +634,5 @@ def sample(steps, wfield, mgrid, lcar = None, **kwds):
             pw = numpy.hstack((p, w))
             result.append(pw)
     ret = numpy.asarray(result)
-    print ret
+    #print ret
     return ret

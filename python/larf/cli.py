@@ -223,6 +223,8 @@ def cmd_export(ctx, result_id, type, name, action, output):
     modname = 'larf.persist'
     if ext in ['png', 'pdf', 'svg', 'eps', 'gif']:
         modname = 'larf.plot'
+    if ext in ['dot']:
+        modname = 'larf.dot'
 
     # find method and call it
     for rtype in [res.type, 'result']:
