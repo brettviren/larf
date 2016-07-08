@@ -156,8 +156,7 @@ def cmd_list(ctx, arrays, params, result_id, name, type, result_format, array_fo
     results = res.all()
 
     if result_format is None:
-        #result_format="result:{id} parent:{parent_id} {created} type:{type} name:{name}"
-        result_format="{id:<4} {parent_id:<4} {type:<12}{name:<12}\t{created}"
+        result_format="{id:<4} {parent_ids:<10} {type:<12}{name:<12}\t{created}"
         if params:
             result_format += "\n{param_lines}"
         if arrays:
@@ -179,19 +178,15 @@ def cmd_list(ctx, arrays, params, result_id, name, type, result_format, array_fo
         if params:
             param_lines = "  params: %s" % pprint.pformat(res.params, indent=2)
 
+        parent_ids = "(%s)" % (','.join(['%d'%p.id for p in res.parents]),)
+
         dat = dict(param_lines = param_lines, array_lines = array_lines,
-                   id = res.id, parent_id = res.parent_id or 0,
+                   id = res.id, parent_ids = parent_ids,
                    created = res.created, type = res.type, name = res.name)
         one = result_format.format(**dat)
         click.echo(one)
         
 
-        # arrstr = ','.join(["%s%s" % (a.name, str(a.data.shape)) for a in res.arrays])
-        # click.echo('result:%d parent:%d %s type:%-10s name:%-12s' % (res.id, res.parent_id or 0, res.created, res.type, res.name))
-        # click.echo("  params: %s" % pprint.pformat(res.params, indent=2))
-        # for arr in res.arrays:
-        #     click.echo("  array:%d type:%-12s name:%-12s dtype:%-8s shape:%s" % (arr.id, arr.type, arr.name, arr.data.dtype, arr.data.shape))
-        # click.echo()
 
 @cli.command("export")
 @click.option('-o','--output', help='Set output file.')
@@ -353,7 +348,7 @@ def cmd_boundary(ctx, boundary, mesh, quadrature_order_multiplier, name):
     
     dfun, nfun = larf.solve.boundary_functions(grid, dirichlet_data)
 
-    res = Result(name=name, type='boundary', parent=meshres,
+    res = Result(name=name, type='boundary', parents=[meshres],
                  params=dict(method=methname, params=methparams),
                  arrays = [
                      Array(name='dirichlet', type='coeff', data=dfun.coefficients),
@@ -392,7 +387,7 @@ def cmd_raster(ctx, raster, boundary, name):
     ses = ctx.obj['session']
 
     potres = larf.store.result_typed(ses, 'boundary', boundary)
-    meshres = larf.store.result(ses, potres.parent_id)
+    meshres = potres.parent_by_type('mesh')
     grid = larf.mesh.result_to_grid(meshres)
 
     potarrs = potres.array_data_by_name()
@@ -408,7 +403,7 @@ def cmd_raster(ctx, raster, boundary, name):
         meth = larf.util.get_method(methname)
         methparams.update(**par)
         arrays = meth(grid, dfun, nfun, **methparams)
-        res = Result(name=name, type='raster', parent=potres,
+        res = Result(name=name, type='raster', parents=[potres, meshres],
                      params=dict(method=methname, params=methparams),
                      arrays = arrays)
         ses.add(res)
@@ -452,7 +447,7 @@ def cmd_velocity(ctx, method, raster, name):
     par = ctx.obj['params']
     arrays = meth(potres, **par)
 
-    res = Result(name=name, type='velocity', parent=potres,
+    res = Result(name=name, type='velocity', parents=[potres],
                  params=dict(method=methname, params=par),
                  arrays=arrays)
     ses.add(res)
@@ -474,7 +469,7 @@ def cmd_step(ctx, step, velocity, name):
     Step through a velocity field.
     '''
     import larf.store
-    from larf.models import Result,Array
+    from larf.models import Result, Array
 
     if step is None:
         step = name
@@ -498,7 +493,7 @@ def cmd_step(ctx, step, velocity, name):
     arr = meth(vfield, mgrid, **params)
     all_steps.append(arr)
     steps = numpy.vstack(all_steps)
-    res = Result(name=name, type='stepping', parent=velores,
+    res = Result(name=name, type='stepping', parents=[velores],
                  params=dict(method=methname, params=params),
                  arrays=[Array(name='steps', type='steps', data=steps)])
     ses.add(res)
@@ -523,6 +518,10 @@ def cmd_current(ctx, current, steps, weighting, name):
     '''
     import larf.store
     import larf.config
+    from larf.models import Result, Array
+
+    if not current:
+        current = name
 
     cfg = ctx.obj['cfg']
     tocall = larf.config.methods_params(cfg, 'current %s' % current)
@@ -536,22 +535,21 @@ def cmd_current(ctx, current, steps, weighting, name):
     wfield = warr['gvector']
     mgrid = warr['mgrid']
     
+    # fixme: allow multiple
+    methname, params = tocall[0]
+    meth = larf.util.get_method(methname)
+    par = ctx.obj['params']
+    params.update(par)
+    arr = meth(steps, wfield, mgrid, **params)
+    res = Result(name=name, type='current', parents=[stepres, weightres],
+                 params=dict(method=methname, params=params),
+                 arrays=[Array(name='signal', type='waveforms', data=arr)])
+    ses.add(res)
+    ses.flush()
+    resid = res.id
+    ses.commit()
+    announce_result('current', res)
 
-
-
-
-    warr = weightres.array_data_by_type()
-    wfield = varr['gvector']
-    current = charge * larf.drift.dot(wfield, vfield)
-
-    stepper = larf.drift.Stepper(velocity, lcar=0.1)
-    steps = stepper(time, position, visitor = larf.drif.LookupVisitor(current))
-    print steps
-
-
-
-    #ses.commit(), etc
-    #announce_result('step', res)
     return
 
 

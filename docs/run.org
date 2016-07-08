@@ -41,7 +41,7 @@ regularize the calling protocol better.
 Each calculation produces a single /result/.  A result has the following attributes
 
 - id :: a unique numerical identifier for the result
-- parent_id :: the identifiers of all results used as input to produce this one
+- parents :: the identifiers of all results used as input to produce this one
 - type :: identifies the calculation category ("mesh", "boundary", "raster", etc)
 - name :: a human readable label, potentially not unique. 
 - timestamp :: when the result was produced
@@ -75,10 +75,14 @@ Uniqueness is in the context of the associated =arrays= table in a LARF store (S
 * Example
 
 Enough generalities and on to some actual calculations.  The provided
-=larf.cfg= file can be used to calculate a drift velocity field for a
-geometry of a simple parallel plane capacitor.   The following examples are wrapped up into [[../tests/test_capacitor.sh][this test script]].
+[[../larf.cfg][larf.cfg]] file and [[../tests/test_capacitor.sh][this test script]] calculates various things for a
+simple parallel plane capacitor.  The calculations are associated as described in this graph:
 
-First, decide on a database file.  Either start fresh with no default database file:
+[[./captest.svg]]
+
+** The database file
+
+Before starting, decide on a database file.  Either start fresh with no default database file:
 
 #+BEGIN_EXAMPLE
   $ rm lart.db
@@ -90,14 +94,20 @@ Or, explicitly give some database file as an argument in the subsequent commands
   $ larf -s mylarfproject.db [...]
 #+END_EXAMPLE
 
-Now, run through the four calculations.  First make a mesh and save the result to the name =capacitor=.  Because we do not explicitly name =[mesh]= configuration section the command assumes we want one by the same name and =[mesh capacitor]= is used.
+The test script elects to use this latter approach, but we will not include the =-s= option in the following examples to keep them brief.  Some logging output is also suppressed.
+
+** Making the mesh
+
+Now, run through the calculations.  First make a *mesh* and save the result to the name =capacitor=.  Because we do not explicitly name the =[mesh]= configuration section the command assumes we want one by the same name and =[mesh capacitor]= is used.  This pattern is repeated in many of the commands to follow.
 
 #+BEGIN_EXAMPLE
   $ larf mesh capacitor
   mesh result id 1
 #+END_EXAMPLE
 
-Next calculate the boundary conditions and save the result to the name =capdrift=.  Again, the assumption is that we want a =[boundary]= section of the same name.  As input we use the the mesh calculated in the previous step.  This is not named because by default the most recent result of type =mesh= is used.
+** Drift field and stepping
+
+Next calculate the *boundary* conditions and save the result to the name =capdrift=.  Again, the assumption is that we want a =[boundary]= section of the same name.  As input we use the the mesh calculated in the previous step.  No mesh is identified and so the most recent result of type =mesh= is used as input.
 
 #+BEGIN_EXAMPLE
   $ larf boundary capdrift
@@ -113,7 +123,7 @@ Next calculate the boundary conditions and save the result to the name =capdrift
   boundary result id 2
 #+END_EXAMPLE
 
-We could have listed the mesh explicitly by result ID or by name like:
+Note, this command implicitly fund the needed input mesh as it was the most recent one produced.  We could have listed the mesh explicitly by result ID or by name like:
 
 #+BEGIN_EXAMPLE
   $ larf boundary -m 1 capdrift
@@ -121,39 +131,71 @@ We could have listed the mesh explicitly by result ID or by name like:
   $ larf boundary -m capacitor capdrift
 #+END_EXAMPLE
 
-Next we evaluate the boundary solution throughout the volume on a raster of points.  Here we use an explicitly named =[raster capacitor]= section different than the result name.
+Next we evaluate the boundary solution throughout the volume on a *raster* of points.  Here we use an explicitly named =[raster capacitor]= section different than the result name.  We do this because we will need a number of "raster" results and it is convenient to differentiate them by their names.  Names can be degenerate as the ID numbers are always unique.
 
 #+BEGIN_EXAMPLE
   $ larf raster -r capacitor capdrift
   raster result id 3
 #+END_EXAMPLE
 
-The last step in the example is to calculate a drift velocity based on the raster potential from the previous step.  As before, this calculation knows it needs a "raster" result and will take the most recent one found in the store.
+Next is to calculate a drift *velocity* based on the raster potential from the previous step.  As before, this calculation knows it needs a "raster" result and will take the most recent one found in the store.  We both specify both configuration section and result name as just "capacitor" as there is only one velocity in this problem.
 
 #+BEGIN_EXAMPLE
-  $ larf velocity velocity capvelo
+  $ larf velocity velocity capacitor
   velocity result id 4
 #+END_EXAMPLE
 
-At any point we can query what is in the store:
+Once we have a velocity we can do *stepping*
+
+#+BEGIN_EXAMPLE
+  larf step capacitor
+  steps result id 5
+#+END_EXAMPLE
+
+The most recent velocity result is picked up as input.  Again, there is only one stepping in this problem so we can name both its configuration section and this result with a generic "capacitor".
+
+** Instantaneous electrode current
+
+The Shockley-Ramo method singles out one electrode at a time in order to calculate the instantaneous *current* in each due to charge moving through the electrostatic field (calculated above).  With this simple problem we have two electrodes.  We must calculate first the S-R weighting field and then the currents for each.  The weighting fields are calculated in a similar way as the electrostatic field.  First a *boundary* calculation and then a *raster* calculation.  These are each combined with a *stepping* to produce their *current*.  Through these calculations
+we pick unique names based on the domain number of the electrodes and take care to explicitly name input results.  The following suppresses some output in order to better show the calling patterns.
+
+#+BEGIN_EXAMPLE
+  $ larf -P domain=1 boundary -b weighting capbound1
+  boundary result id 6
+
+  $ larf -P domain=2 boundary -b weighting capbound2
+  boundary result id 7
+
+  $ larf raster -b capbound1 -r capacitor capweight1
+  raster result id 8
+
+  $ larf raster -b capbound2 -r capacitor capweight2
+  raster result id 9
+
+  $ larf current -c capacitor -s capacitor -w capweight1 capcur1
+  current result id 10
+
+  $ larf current -c capacitor -s capacitor -w capweight2 capcur2
+  current result id 11
+#+END_EXAMPLE
+
+** Summary listing
+
+At this point a summary of all results can be shown:
 
 #+BEGIN_EXAMPLE
   $ larf list
-  1    0    mesh        capacitor         2016-07-07 10:32:18.027677
-  2    1    boundary    capdrift          2016-07-07 10:32:22.949892
-  3    2    raster      capdrift          2016-07-07 10:36:28.715293
-  4    3    velocity    capvelo           2016-07-07 12:40:42.188610
-
-  $ larf list -a -p -t mesh
-  1    0    mesh        capacitor         2016-07-07 10:32:18.027677
-    params: [ { u'method': u'larf.electrode.cpa',
-      u'params': { u'dx': 1, u'dy': 20, u'dz': 20, u'lcar': 5, u'offsetx': 21}},
-    { u'method': u'larf.electrode.cpa',
-      u'params': { u'dx': 1, u'dy': 20, u'dz': 20, u'lcar': 5, u'offsetx': -21}}]
-     1 int64    domains      domains      (920,)
-     2 float64  points       points       (464, 3)
-     3 int32    triangles    triangles    (920, 3)
-
+  1    ()         mesh        capacitor           2016-07-08 09:39:41.837673
+  2    (1)        boundary    capdrift            2016-07-08 09:39:42.594153
+  3    (2,1)      raster      capdrift            2016-07-08 09:40:15.099561
+  4    (3)        velocity    capacitor           2016-07-08 09:40:15.570969
+  5    (4)        stepping    capacitor           2016-07-08 09:40:15.922463
+  6    (1)        boundary    capbound1           2016-07-08 09:40:16.659825
+  7    (1)        boundary    capbound2           2016-07-08 09:40:17.411794
+  8    (6,1)      raster      capweight1          2016-07-08 09:40:50.502844
+  9    (7,1)      raster      capweight2          2016-07-08 09:41:23.182059
+  10   (5,8)      current     capcur1             2016-07-08 09:41:23.541461
+  11   (5,9)      current     capcur2             2016-07-08 09:41:23.828367
 #+END_EXAMPLE
 
-The simple version lists info about all results.  The second example shows how to list info about arrays (=-a=) and parameters (=-p=) for results of one type (=-t mesh=).
+Details about the arrays (=-a=) and parameters (=-p=) associated with each result can be shown and one can filter what is shown by result type (=-t=) and name (=-n=).  

@@ -9,7 +9,7 @@ import io
 from datetime import datetime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, Table
 import sqlalchemy.types as types
 
 from sqlalchemy import Column, Integer, String, Enum
@@ -52,7 +52,14 @@ result_types = [
     'raster',
     'velocity',
     'stepping',
+    'current',
 ]
+
+result_provenance = Table(
+    "result_provenance", Base.metadata,
+    Column('parent_id', Integer, ForeignKey('results.id'), primary_key=True),
+    Column('child_id', Integer, ForeignKey('results.id'), primary_key=True)
+)
 
 class Result(Base):
     __tablename__ = 'results'
@@ -65,15 +72,30 @@ class Result(Base):
 
     arrays = relationship("Array", back_populates="result")
 
-    parent = relationship("Result", remote_side=[id])
-    parent_id = Column(Integer, ForeignKey("results.id"))
-    children = relationship("Result")
+    children = relationship('Result',
+                            secondary = result_provenance,
+                            primaryjoin=id==result_provenance.c.parent_id,
+                            secondaryjoin=id==result_provenance.c.child_id,
+                            backref="parents")
+
+    # parent = relationship("Result", remote_side=[id])
+    # parent_id = Column(Integer, ForeignKey("results.id"))
+    # children = relationship("Result")
 
     def array_data_by_type(self):
         return {a.type:a.data for a in self.arrays}
     def array_data_by_name(self):
         return {a.name:a.data for a in self.arrays}
 
+    def parent_by_type(self, type):
+        for p in self.parents:
+            if p.type == type:
+                return p
+    def parent_by_name(self, name):
+        for p in self.parents:
+            if p.name == name:
+                return p
+        
 
 array_types = [
     'points',    # N-ordered points (x,y,z) in 3-space (N_points,3)
@@ -87,6 +109,7 @@ array_types = [
     'pscalar',   # scalar value defined at points on path (N_path,)
     'ptuple',    # tuple of n values defined at points on path (N_path, n)
     'steps',     # (N_path, N_steps+1, 4) arrays holding 4-points (x,y,z,t) along step paths.
+    'waveforms', # (N_electrodes, N_steps+1, 2) arrays holding (time, current) tuples
 ]
 class Array(Base):
     __tablename__ = 'arrays'

@@ -594,48 +594,45 @@ def substepping(p1, step, dt):
     step.  If dt is larger than step, just [p1] is returned.
     '''
     velo = step[:3]/step[3]
-    n = int(step[3]/dt)
-    if n < 1:
-        return [p1]
-    dt = step[:3][0]/dt
+    n = max(2, int(step[3]/dt))
+    dt = step[3]/n
 
     velo = dt*numpy.hstack((velo, 1.0))
-    return [p1 + i*velo for i in range(n)]
+    ss = [p1 + i*velo for i in range(n)]
+    return ss
     
 
-def current(steps, wfield, mgrid, tick=0.5*units.us, charge=1.0, **kwds):
+def sample(steps, wfield, mgrid, lcar = None, **kwds):
     '''
-    Sample steps in the presence of a weighting field to produce a
-    waveform giving instantaneous current.
+    Sample wfield along steps at a granularity near lcar.
+
+    If lcar not given divine it based on mgrid.
+
+    Return an array of 5-arrays: (x,y,z,t,w)
     '''
     import larf.util
     linspaces = larf.util.mgrid_to_linspace(mgrid)
     weight = Field(wfield, linspaces)
 
+    if not lcar:
+        lcar = min(linspaces[0][1] - linspaces[0][0],
+                   linspaces[1][1] - linspaces[1][0],
+                   linspaces[2][1] - linspaces[2][0])
 
-    tstart = steps[0][-1]
-    tstop = steps[-1][-1]
-    nticks = int((tstop-tstart)/tick)
-
-    waveform = numpy.asarray([0.0]*nticks)
-    number = numpy.asarray([0.0]*nticks)
-    def fill(pt, value):
-        t = pt[0]
-        ind = int((tstart-t)/tick)
-        if ind < 0:
-            return
-        if ind >= nticks:
-            return
-        waveform[ind] += value
-        number[ind] += 1
-
+    result = list()
     for istep, p1 in enumerate(steps[:-1]):
         p2 = steps[istep+1]
         step = p2-p1
+        dist = math.sqrt(numpy.dot(step[:3], step[:3]))
+        n = max(2, int(dist/lcar))
         velo = step[:3]/step[3]
-
-        for p in substepping(p1, step, tick):
-            Ew = weight(p)
-            cur = charge * numpy.dot(Ew, velo)
-            fill(p, cur)
-    return numpy.asarray([(tstart+i*tick, waveform[i]/number[i]) for i in range(nticks) if number[i]])
+        for count in range(n):
+            p = p1 + float(count)/float(n)*step
+            r = p[:3]
+            Ew = weight(r)
+            w = numpy.dot(Ew, velo)
+            pw = numpy.hstack((p, w))
+            result.append(pw)
+    ret = numpy.asarray(result)
+    print ret
+    return ret
