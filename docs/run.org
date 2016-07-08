@@ -105,6 +105,32 @@ Now, run through the calculations.  First make a *mesh* and save the result to t
   mesh result id 1
 #+END_EXAMPLE
 
+To visually check the mesh you can export it into a number of formats.  For example, export for [[http://gmsh.info][GMSH]]:
+
+#+BEGIN_EXAMPLE
+  $ larf export -t mesh capacitor-mesh.msh
+  $ gmsh capacitor-mesh.msh
+#+END_EXAMPLE
+
+[[./capacitor-mesh-gmsh.svg]]
+
+Or, export to VTK for [[http://docs.enthought.com/mayavi/mayavi/][mayavi2]] or [[http://www.paraview.org/][paraview]]:
+
+#+BEGIN_EXAMPLE
+  $ larf export -r 1 capacitor-mesh.vtk
+  $ mayavi2 capacitor-mesh.vtk
+  # or
+  $ mayavi2 capacitor-mesh.vtk
+#+END_EXAMPLE
+
+For mayavai2, do "Add Module" \to "Surface".
+
+[[./capacitor-mesh-mayavi2.png]]
+
+For paraview, click on the eyeball.
+
+[[./capacitor-mesh-paraview.png]]
+
 ** Drift field and stepping
 
 Next calculate the *boundary* conditions and save the result to the name =capdrift=.  Again, the assumption is that we want a =[boundary]= section of the same name.  As input we use the the mesh calculated in the previous step.  No mesh is identified and so the most recent result of type =mesh= is used as input.

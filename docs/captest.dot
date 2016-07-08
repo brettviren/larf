@@ -1,0 +1,12 @@
+digraph captest {
+	rankdir=LR;
+	mesh->boundary->raster;
+	mesh->raster->velocity->stepping;
+	mesh->capbound1->capweight1->capcur1;
+	mesh->capbound2->capweight2->capcur2;	
+	mesh->capweight1;
+	mesh->capweight2;
+	stepping->capcur1;
+	stepping->capcur2;
+
+}

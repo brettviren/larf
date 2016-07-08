@@ -189,27 +189,42 @@ def cmd_list(ctx, arrays, params, result_id, name, type, result_format, array_fo
 
 
 @cli.command("export")
-@click.option('-o','--output', help='Set output file.')
+@click.option('-r','--result-id', help='The result ID to export.')
+@click.option('-t','--type', help='The result type to export.')
+@click.option('-n','--name', help='The result name to export.')
 @click.option('-a','--action', default='save', help='Set export action.')
-@click.argument('resultid', type=int)
+@click.argument('output')
 @click.pass_context
-def cmd_export(ctx, output, action, resultid):
+def cmd_export(ctx, result_id, type, name, action, output):
     '''
     Export a result to a file.
     '''
     from larf.models import Result
     import larf.util
     import larf.persist
+    from sqlalchemy import desc
 
     ses = ctx.obj['session']
-    kwd = ctx.obj['params']
 
-    res = larf.store.result(ses, resultid)
+    # fixme: move this into store.py
+    res = ses.query(Result)
+    if result_id:
+        res = res.filter(Result.id.in_(result_id))
+    if name:
+        res = res.filter(Result.name.in_(name))
+    if type:
+        res = res.filter(Result.type.in_(type))
+    res = res.order_by(desc(larf.models.Result.created))
+    res = res.first()
+
+    kwd = ctx.obj['params']
     ext = output.rsplit('.',1)[-1]
 
     modname = 'larf.persist'
     if ext in ['png', 'pdf', 'svg', 'eps', 'gif']:
         modname = 'larf.plot'
+
+    # find method and call it
     for rtype in [res.type, 'result']:
         for oext in [ext, 'any']:
             methname = "%s.%s_%s_%s" % (modname, action, rtype, oext)
@@ -540,6 +555,10 @@ def cmd_current(ctx, current, steps, weighting, name):
     meth = larf.util.get_method(methname)
     par = ctx.obj['params']
     params.update(par)
+
+    charge = params.pop('charge',1.0)
+    wfield = charge*wfield
+
     arr = meth(steps, wfield, mgrid, **params)
     res = Result(name=name, type='current', parents=[stepres, weightres],
                  params=dict(method=methname, params=params),
