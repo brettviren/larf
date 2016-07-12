@@ -35,7 +35,9 @@ def linear(grid, dfun, nfun,
     slp_pot = bempp.api.operators.potential.laplace.single_layer(pcspace, points)
     dlp_pot = bempp.api.operators.potential.laplace.double_layer(plspace, points)
     u_evaluated = slp_pot*nfun-dlp_pot*dfun
+    print 'u_evaluated.shape=',u_evaluated.shape, u_evaluated.T[0], points.T[0]
     u_reshaped = u_evaluated.reshape(mgrid[0].shape)
+    print 'u_reshaped.shape=',u_reshaped.shape
 
 
     return [Array(type='mgrid', name='domain', data=mgrid),

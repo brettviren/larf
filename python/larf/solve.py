@@ -45,7 +45,7 @@ def boundary_functions(grid, boundary_potential):
     print dirichlet_data
 
     print 'Solving boundary integral equation'
-    neumann_fun, info = bempp.api.linalg.cg(slp, rhs, tol=1E-3)
+    neumann_fun, info = bempp.api.linalg.cg(slp, rhs, tol=1E-6)
     #bempp.api.export(grid_function=neumann_fun, file_name=outname+'_neumann.msh')
     #print type(neumann_fun)
 
@@ -87,22 +87,35 @@ def load(filename):
                            
 
 
-def set_gaussian_quadrature(near=4, medium=3, far=2):
+
+def gaussian_quadrature_orders(gqo_near=4, gqo_medium=3, gqo_far=2, gqo_ds=6, **kwds):
     '''
-    Set the precision in the BEM++ Gaussian quadrature.
+    Set the orders of the BEM++ Gaussian quadrature.
 
     Solutions may have sub-domains where the potential is
     discontinuous on their borders.  Increasing the near, medium or
     far orders may help produce a more correct and smooth solution.
 
+    http://www.bempp.org/quadrature.html?highlight=global_parameters
+
     @todo: add setting of distance scales.
     '''
     import bempp.api
     q = bempp.api.global_parameters.quadrature
-    q.near.single_order = near
-    q.near.double_order = near
-    q.medium.single_order = medium
-    q.medium.double_order = medium
-    q.far.single_order = far
-    q.far.double_order = far
+    if gqo_ds:
+        q.double_singular = gqo_ds
+    if gqo_near:
+        q.near.single_order = gqo_near
+        q.near.double_order = gqo_near
+    if gqo_medium:
+        q.medium.single_order = gqo_medium
+        q.medium.double_order = gqo_medium
+    if gqo_far:
+        q.far.single_order = gqo_far
+        q.far.double_order = gqo_far
 
+    kwds['gqo_ds'] = q.double_singular
+    kwds['gqo_near'] = q.near.single_order
+    kwds['gqo_medium'] = q.medium.single_order
+    kwds['gqo_far'] = q.far.single_order
+    return kwds

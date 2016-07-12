@@ -75,6 +75,30 @@ def save_mesh_vtk(result, outfile, **kwds):
     write_data(pd, outfile)
     return
 
+def save_boundary_vtk(result, outfile, **kwds):
+    from tvtk.api import tvtk
+    from tvtk.api import write_data
+
+    meshres = result.parents[0]
+    arrs = meshres.array_data_by_type()
+    points = arrs['points']
+    triangles = arrs['triangles']
+
+    arrs = result.array_data_by_name()
+    dirichlet = arrs['dirichlet'] # on points
+    neumann = arrs['neumann']   # on elements
+
+    pd = tvtk.PolyData()
+    pd.points = points
+    pd.polys = triangles
+    pd.point_data.scalars = dirichlet
+    pd.point_data.scalars.name = "dirichlet"
+
+    write_data(pd, outfile)
+    return
+
+    
+
 def save_result_npz(result, outfile, compression=True, **kwds):
     '''
     Save the arrays to the NPZ file.

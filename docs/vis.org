@@ -1,0 +1,75 @@
+#+TITLE: Visualization of LARF Results
+
+* Overview
+
+LARF provides some built in plotting and can export results to MSH which can be viewed GMSH or VTK format which can then be viewed in =mayavia2= or =paraview=.
+
+* Built in
+
+t.b.d.
+
+* Meshes
+
+Export the most recent result of type "mesh" to an ASCII MSH file and view it in GMSH:
+
+#+BEGIN_EXAMPLE
+  $ larf export -t mesh mesh.msh
+  $ gmsh mesh.msh
+#+END_EXAMPLE
+
+Running =gmsh= lets you easily check if the mesh looks reasonable.  Some things to notice:
+
+- is everything in the expected location and orientation?
+- is the cross-sectional shape of the wires "roundish"?   
+- are the wires extruded with a twist?
+- are there "too few" or "too many" facets used? (not easy to quantify)
+
+You can also export the mesh to VTK:
+
+#+BEGIN_EXAMPLE
+  $ larf export -t mesh mesh.vtk
+  $ paraview mesh.msh
+#+END_EXAMPLE
+
+In =paraview= you can check if the domain assignments make sense.  Click
+on the "eyeball" next to the file name in the "Pipeline Browser".  By
+default the different parts of the mesh will be colored based on their
+domain numbers.
+
+[[./domains.png]]
+
+* Boundary
+
+Boundaries can also be easily exported and viewed in =paraview=:
+
+#+BEGIN_EXAMPLE
+  $ larf export -t boundary boundary.vtk
+  $ paraview boundary.vtk
+#+END_EXAMPLE
+
+By default it shows the Dirichlet (scalar) boundary condition defined
+on the points of the mesh.  For example, the Shockley-Ramo boundary
+condition for the 6th wire at 1V and all others at 0V is visualized as:
+
+[[./dirichlet.png]]
+
+* Raster
+
+The "raster" result type has three arrays:
+
+#+BEGIN_EXAMPLE
+  $ larf list -r 3 -a
+  3    (2,1)      raster      u6                  2016-07-12 10:03:57.784141
+     6 float64  mgrid        domain       (3, 50, 3, 50)
+     7 float64  gscalar      scalar       (50, 3, 50)
+     8 float64  gvector      gradient     (3, 50, 3, 50)
+#+END_EXAMPLE
+
+The array of type "gscalar" is a potential and "gvector" is its Cartesian gradient.  Each element of these fields are defined on points given by "mgrid" which is an array as returned by =numpy.meshgrid(..., indexing="ij")=.  When exporting a "raster" result to VTK these arrays are saved in a way that =paraview= can read them:
+
+#+BEGIN_EXAMPLE
+  $ larf2d export -r 3 raster-u6.vtk
+  $ paraview raster-u6.vtk
+#+END_EXAMPLE
+
+By default =paraview= will show a simple outline of the volume filled by "mgrid".  Change from "Outline" to "Surface" or "Volume" in the Properties ->  Representation list.  You can open the =boundary.vtk= file from above to overlay the geometry.

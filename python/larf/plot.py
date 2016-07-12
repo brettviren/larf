@@ -10,6 +10,7 @@ from matplotlib import pyplot as plt
 import numpy.ma as ma
 
 
+
 def twodify(mgrid, values, axis, index):
     '''
     Return remove one dimension by taking a indexed slice on axis
@@ -24,21 +25,19 @@ def twodify(mgrid, values, axis, index):
     return
 
 
-def save_raster_any(result, outfile, axis=1, index=0, **kwds):
+def slice_raster_any(result, outfile, axis=1, index=0, cmap='spectral', clim=(0,1), **kwds):
     '''
-    Plot a "raster" type result which consists of arrays of type mgrid and gscalar.
-
-    If result arrays are 3D then plot a slice along given axis at index.
+    Plot slice of a "raster" result type.
     '''
     arrs = result.array_data_by_type()
     mgrid, values = arrs['mgrid'], arrs['gscalar']
-    if mgrid.shape[0] == 3:
-        mgrid, values = twodify(mgrid, values, axis, index)
+    mgrid, values = twodify(mgrid, values, axis, index)
+    vmin,vmax = clim
 
     X,Y = mgrid
     plt.clf()
     fig,ax = plt.subplots()
-    im = ax.pcolor(X, Y, values)
+    im = ax.pcolor(X, Y, values, cmap=cmap, vmin=vmin, vmax=vmax)
     fig.colorbar(im)
     plt.title('Scalar Result "%s", ID #%d' % (result.name, result.id))
     plt.savefig(outfile)

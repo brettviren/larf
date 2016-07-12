@@ -189,9 +189,12 @@ def cmd_list(ctx, arrays, params, result_id, name, type, result_format, array_fo
 
 
 @cli.command("export")
-@click.option('-r','--result-id', help='The result ID to export.')
-@click.option('-t','--type', help='The result type to export.')
-@click.option('-n','--name', help='The result name to export.')
+@click.option('-r','--result-id', multiple=True,
+              help='The result ID to export.')
+@click.option('-t','--type', multiple=True,
+              help='The result type to export.')
+@click.option('-n','--name', multiple=True,
+              help='The result name to export.')
 @click.option('-a','--action', default='save', help='Set export action.')
 @click.argument('output')
 @click.pass_context
@@ -206,17 +209,24 @@ def cmd_export(ctx, result_id, type, name, action, output):
 
     ses = ctx.obj['session']
 
-    # fixme: move this into store.py
-    res = ses.query(Result)
-    if result_id:
-        res = res.filter(Result.id.in_(result_id))
-    if name:
-        res = res.filter(Result.name.in_(name))
-    if type:
-        res = res.filter(Result.type.in_(type))
-    res = res.order_by(desc(larf.models.Result.created))
-    res = res.first()
+    result_id = tuple([int(rid) for rid in result_id])
 
+    # fixme: move this into store.py
+    try:
+        res = ses.query(Result)
+        if result_id:
+            res = res.filter(Result.id.in_(result_id))
+        if name:
+            res = res.filter(Result.name.in_(name))
+        if type:
+            res = res.filter(Result.type.in_(type))
+        res = res.order_by(desc(larf.models.Result.created))
+        res = res.first()
+        res.type                # trigger attribute error if NoneType
+    except AttributeError:
+        click.echo("failed to find results for id in %s, name in %s, type in %s" % \
+                   (result_id, name, type))
+        return 1
     kwd = ctx.obj['params']
     ext = output.rsplit('.',1)[-1]
 
@@ -328,17 +338,15 @@ def cmd_mesh(ctx, mesh, name):
               help='The "[boundary]" configuration file section.')
 @click.option('-m', '--mesh', default=None,
               help='The "mesh" result to use (id or name, default=use most recent).')
-@click.option('-q', '--quadrature-order-multiplier', default=1, type=int,
-              help='Precision factor to apply to Gaussian quadrature orders.')
 @click.argument('name')
 @click.pass_context
-def cmd_boundary(ctx, boundary, mesh, quadrature_order_multiplier, name):
+def cmd_boundary(ctx, boundary, mesh, name):
     '''
     Solve surface boundary potentials.
     '''
     import larf.solve
-    quad_order = quadrature_order_multiplier * [4,3,2]
-    larf.solve.set_gaussian_quadrature(*quad_order)
+    par = ctx.obj['params']
+    par = larf.solve.gaussian_quadrature_orders(**par)
 
     import larf.config
     import larf.util
@@ -353,8 +361,6 @@ def cmd_boundary(ctx, boundary, mesh, quadrature_order_multiplier, name):
     grid = larf.mesh.result_to_grid(meshres)
 
     cfg = ctx.obj['cfg']
-    par = ctx.obj['params']
-
     tocall = larf.config.methods_params(cfg, 'boundary %s' % boundary)
     methname, methparams = tocall[0] # just first
     methparams.update(**par)
@@ -379,6 +385,56 @@ def cmd_boundary(ctx, boundary, mesh, quadrature_order_multiplier, name):
     return
 
 
+@cli.command("copy-boundary")
+@click.option('-b','--boundary', default=None,
+              help='The "boundary" result to use.')
+@click.argument('name')
+@click.pass_context
+def cmd_copy_boundary(ctx, boundary, name):
+    '''
+    Read in boundary and its grid and save a copy under a new name.
+
+    This is meant for testing.
+    '''
+    from larf.models import Result, Array
+    import larf.mesh
+    import bempp.api
+
+    ses = ctx.obj['session']
+
+    old_potres = larf.store.result_typed(ses, 'boundary', boundary)
+    potarrs = old_potres.array_data_by_name()
+
+    old_meshres = old_potres.parent_by_type('mesh')
+    grid = larf.mesh.result_to_grid(old_meshres)
+
+    dfun = bempp.api.GridFunction(grid, coefficients = potarrs['dirichlet'])
+    nfun = bempp.api.GridFunction(grid, coefficients = potarrs['neumann'])
+
+    lv = grid.leaf_view
+    
+    meshres = Result(name=name, type='mesh',
+                     params = old_meshres.params,
+                     arrays = [
+                         Array(type='domains', name='domains', data=lv.domain_indices),
+                         Array(type='points', name='points', data=lv.vertices.T),
+                         Array(type='triangles', name='triangles', data=lv.elements.T),
+                     ])
+    ses.add(meshres)
+    ses.flush()
+    announce_result('mesh', meshres)
+
+    potres = Result(name=name, type='boundary', parents=[meshres],
+                    params=old_meshres.params,
+                    arrays = [
+                        Array(name='dirichlet', type='coeff', data=dfun.coefficients),
+                        Array(name='neumann', type='coeff', data=nfun.coefficients),
+                    ])
+    ses.add(potres)
+    ses.flush()
+    announce_result('boundary', potres)
+    ses.commit()
+
 
 @cli.command("raster")
 @click.option('-r','--raster',  
@@ -392,6 +448,9 @@ def cmd_raster(ctx, raster, boundary, name):
     Evaluate a solution on a grid of points.
     '''
     import larf.solve
+    par = ctx.obj['params']
+    par = larf.solve.gaussian_quadrature_orders(**par)
+
     import larf.config
     import larf.mesh
     from larf.models import Result
@@ -400,7 +459,6 @@ def cmd_raster(ctx, raster, boundary, name):
     if not raster:
         raster = name
 
-    #larf.solve.set_gaussian_quadrature(16,12,4)
     ses = ctx.obj['session']
 
     potres = larf.store.result_typed(ses, 'boundary', boundary)
@@ -414,7 +472,6 @@ def cmd_raster(ctx, raster, boundary, name):
     cfg = ctx.obj['cfg']
     tocall = larf.config.methods_params(cfg, 'raster %s' % raster)
 
-    par = ctx.obj['params']
     resids = list()
     for methname, methparams in tocall:
         meth = larf.util.get_method(methname)

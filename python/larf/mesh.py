@@ -205,6 +205,7 @@ def result_to_grid(res):
     arrs = {a.type:a.data for a in res.arrays}
 
     pts, tri, dom = arrs['points'],arrs['triangles'],arrs['domains']
+    assert pts.shape[1] == 3
     pts, tri = make_unique(pts, tri)
     return bem.grid_from_element_data(pts.T,tri.T,dom)
 
