@@ -21,7 +21,7 @@ from larf.bem import spaces
 from larf.models import Array
 
 def linear(grid, dfun, nfun,
-           linspaces=[(-1,1,10), (-2,2,20), (-3,3,30)], **kwds):
+           linspaces=[(-1.,1.,10), (-2.,2.,20), (-3.,3.,30)], **kwds):
     '''
     Evaluate the potential on a linear grid space.
     '''
@@ -40,9 +40,12 @@ def linear(grid, dfun, nfun,
     print 'u_reshaped.shape=',u_reshaped.shape
 
 
-    return [Array(type='mgrid', name='domain', data=mgrid),
-            Array(type='gscalar', name='scalar', data = u_reshaped),
-            Array(type='gvector', name='gradient', data = np.asarray(np.gradient(u_reshaped)))]
+    return [
+        Array(type='mgrid', name='domain', data=mgrid),
+        Array(type='gscalar', name='scalar', data = u_reshaped),
+        Array(type='gvector', name='gradient', data = np.asarray(np.gradient(u_reshaped))),
+#        Array(type='points', name='points', data = points.T),
+    ]
     
 
 def pixels(grid, dirichlet_fun, neumann_fun, 
