@@ -16,7 +16,7 @@ def get_grid():
     from larf.mesh import Scene
     import larf.wires
 
-    one = larf.wires.one(length=10*mm, radius=1*mm, lcar=1*mm)
+    one = larf.wires.one(length=10*mm, radius=1*mm, lcar=.1*mm)
     scene = Scene()
     scene.add(one)
     return scene.grid()
@@ -44,7 +44,7 @@ def do_save(grid, arrays):
     abn = {a.type:a.data for a in arrays}
     mgrid = abn["mgrid"]
     potential = abn["gscalar"]    
-
+    gradient = abn["gvector"]
 
     print dimensions, potential.shape
 
@@ -52,8 +52,11 @@ def do_save(grid, arrays):
     print 'origin:',origin
     print 'dimensions:',dimensions
     sp = tvtk.StructuredPoints(spacing=spacing, origin=origin, dimensions=dimensions)
-    sp.point_data.scalars = potential.ravel()
+    sp.point_data.scalars = potential.ravel(order='F')
     sp.point_data.scalars.name = "potential"
+    sp.point_data.vectors = gradient.ravel(order='F')
+    sp.point_data.vectors.name = "gradient"
+
     write_data(sp, "test_kitchen_sink_potential.vtk")
 
     numpy.savez_compressed("test_kitchen_sink.npz", **abn)

@@ -38,13 +38,21 @@ If =dpkg= command will fail the subsequent =apt-get= will install missing depend
 
 LARF installs in the "usual Python way":
 
-#+BEGIN_SRC sh
+It's recommended to install in a virtualenv.  Do this like:
+
+#+BEGIN_EXAMPLE
+  $ virtualenv --system-site-packages vevn
+  $ source venv/bin/activiate
+#+END_EXAMPLE
+
+In any case, installation goes like:
+
+#+BEGIN_EXAMPLE
   $ git clone ...
   $ cd larf
   $ python setup.py install
   # or 
   $ python setup.py develop
   $ larf 
-#+END_SRC
-
+#+END_EXAMPLE
 

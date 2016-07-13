@@ -6,6 +6,7 @@ setup(
     packages = ['larf'],
     install_requires = [
         'Click',
+        'meshio',
     ],
     entry_points = dict(
         console_scripts = [
