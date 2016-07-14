@@ -31,7 +31,7 @@ def array(proto, nwires, pitch, origin=(0,0,0), **kwds):
     origin = np.asarray(origin)
     pitch = np.asarray(pitch)
 
-    start = (-0.5*nwires)*pitch + origin
+    start = int(-0.5*nwires)*pitch + origin
     ret = list()
     for count in range(nwires):
         copy = proto.copy()

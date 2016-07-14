@@ -1,0 +1,104 @@
+* Files
+
+Various =larf= commands consume and produce Numpy arrays stored in =.npz= files.  This graph tries to collect some of this.
+
+[[./steps.png]]
+
+(note: may not actually be right)
+
+** Array names
+
+To support arrays from multiple steps and different solutions solutions the arrays encode metadata as:
+
+#+BEGIN_EXAMPLE
+<name>_<step>_<type>
+#+END_EXAMPLE
+
+Where each label identifies:
+
+- =name= :: an external configuration set by user or =larf= by default,
+- =step= :: the step that produced the array,
+- =type= :: a category for the array.
+
+The =name= may be free form except it must consist of only alphanumeric characters (and no underscore "=_=").
+
+
+
+
+
+** Mesh
+
+The "mesh" (or "grid" in BEM++ language) describes the boundary surface in terms of facets (triangles in this case).  The mesh is defined in terms of three quantities:
+
+- =vertices= :: a 2D array of 3D Cartesian coordinates of points from which the facets are made.
+- =elements= :: a 2D array of ordered triplets of indices into the vertices array.  The ordering is such that the normal direction produced by the right-hand-rule points into the region of zero field (ie, into the material or away from the volume where the field is to be calculated).
+- =domains= :: a 1D array with each entry providing a domain index for each entry in the /elements/ array.  Domain indices are simply numbers used to associate a set of mesh elements (this is used to assign a boundary potential).
+
+Meshes can be provided in a number of ways:
+
+- [[http://gmsh.info/doc/texinfo/gmsh.html#MSH-ASCII-file-format][MSH ASCII format]] files with care taken to encode the domain indices.
+- Numpy =.npz= format with keys named as in the above list.
+- Generated internally by =larf mesh=
+
+To generate a mesh with =larf mesh= one names a =[mesh]= section in the =larf.cfg= file.  More info on configuration is below.  Generated meshes can be saved to one of the supported file formats:
+
+#+BEGIN_SRC sh
+  $ larf mesh -o one.msh one
+  $ larf mesh -o parallel.npz parallel
+  $ larf mesh -o uboone.npz -o uboone.msh uboone
+#+END_SRC
+
+Meshes in MSH format can be easily viewed with =gmsh=:
+
+#+BEGIN_SRC sh
+  $ gmsh uboone.msh
+#+END_SRC
+
+
+** Solve
+
+This step integrates the Laplace equation and evaluates that solution
+at the boundary using potentials defined on the mesh.  Ultimately,
+boundary potentials are defined in terms of the domain indices
+(described above).  There are two classes of potentials to solve:
+/drift/ and /weighting/.  Solving for the /drift/ potential requires
+some detailed boundary potential specification and is accomplished by
+mapping individual or ranges of domain indices to voltage values.
+The /weighting/ potential requires only specifying which domain to
+focus on, setting it to unit voltage and setting all other domains to
+0V.  To simplify the specification each case has its own rule to apply
+parameters to define the potential.  This is all specified through the
+command line and configuration file.
+
+#+BEGIN_SRC sh
+  $ larf solve -p weghting -d 11 -o parallel-near-d10.npz parallel.msh
+  $ larf solve -p drift          -o parallel-drift.npz parallel.msh
+#+END_SRC
+
+The first example uses the /weighting/ potential defined in =larf.cfg= with the domain index 11 called out as special (ie, that wire will be set to 1V).  The second example uses the /drift/ potential defined in =larf.cfg=.  In that definition the potential of all domains are described through a map like:
+
+#+BEGIN_EXAMPLE
+domain_voltage_map = {(1,21):-200*V, (21,41):0*V, (41,61):200*V, 61:-500*2*V, 62:500*2*V}
+#+END_EXAMPLE
+
+The output =.npz= file contains the solved integral function evaluated
+at the boundary.  It can be used for input to the rastering step.
+
+** Raster
+
+This step evaluates the solution from the prior step at points throughout the volume.
+
+
+
+** Plot
+
+The =.npz= file produced above can be used as desired.  The =larf= command line tool can use this file to produce some plots.  Like the solution, a plot section of the configuration file is specified and it should associate a raster which is compatible with the solution.  This compatibility is required to get the axis scale correct.
+
+#+BEGIN_SRC sh
+  $ larf plot -o parallel-near.pdf -p near parallel-near-d10.npz
+#+END_SRC
+
+The extension of the output file determines its format.
+
+[[./parallel-near.png]]
+

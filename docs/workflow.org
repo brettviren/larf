@@ -1,0 +1,70 @@
+#+TITLE: LARF Calculation Workflows
+
+* Overview
+
+A full LARF calculation is composed of many calls to =larf=.  It is
+typical that one needs to build up to the full calculation with many
+starts and restarts.  Doing this all on the command line can become
+tedious and error prone.  This document describes some ways to manage
+this.
+
+* Domain Specific Configuration and Database
+
+Make use of the command line flags that let a specific configuration
+and database file to be specified.  Curry this into an alias or shell
+function.
+
+#+BEGIN_SRC sh
+larf2d () {
+    larf -c /path/to/twodee.cfg -s /path/to/twodee.db $@
+}
+#+END_SRC
+
+This then lets one conveniently call various =larf= commands when calculating for whatever problem "twodee" might be about.
+
+#+BEGIN_EXAMPLE
+  $ emacs /path/to/twodee.cfg
+  $ larf2d mesh mymesh
+  $ larf2d boundary -r 1 myboundary
+  ...
+#+END_EXAMPLE
+
+* Idempotent Scripting
+
+As shown in the figure in [[./run.org]] a full larf calculation is mostly
+a linear chain with some branching and merging of results.  As this
+chain gets understood and built up one may want to capture how it was
+created in a way that it can be exactly reproduced later.  This can be
+scripted such that each time the script is rerun it skips any previous
+runs if the result already exists.  This is called "idempotency".  The
+=larf= command provides support for writing idempotent scripts using
+the =larf list= command.  Here is an example
+
+#+BEGIN_SRC sh
+  #!/bin/bash
+  mydir="$(dirname $(readlink -f $BASH_SOURCE))"
+  twodee () {
+      larf -c "$mydir/twodee.cfg" -s "$mydir/twodee.db" $@
+  }
+  doifneeded () {
+      ident=$1 ; shift
+      if [ -n "$(twodee list | grep ^${ident}'\b')" ] ; then
+          return
+      fi
+
+      twodee $@
+  }
+  doifneeded 1 mesh twodee
+  doifneeded 2              boundary -b drift drift
+  doifneeded 3 -P domain=18 boundary -b weighting v6
+  doifneeded 4              raster   -r coarse -b 3 v6
+  doifneeded 5 -P domain=6  boundary -b weighting u6
+  doifneeded 6              raster   -r coarse -b 5 u6
+  doifneeded 7 -P domain=30 boundary -b weighting w6
+  doifneeded 8              raster   -r coarse -b 7 w6
+  doifneeded 9              raster   -r coarse -b 2 drift
+  doifneeded 10             raster   -r fine -b 3 v6
+  doifneeded 11             raster   -r fine -b 5 u6
+  doifneeded 12             raster   -r fine -b 7 w6
+  doifneeded 13             raster   -r fine -b 2 drift
+#+END_SRC

@@ -38,18 +38,18 @@ def _save_mgrid_vtk(result, outfile, **kwds):
     print 'origin: %s' % str(origin)
     print 'spacing: %s' % str(spacing)
     print 'dimensions: %s' % str(shape)
-    sp = tvtk.StructuredPoints(spacing=spacing, origin=origin, dimensions=shape)
+    dat = tvtk.ImageData(spacing=spacing, origin=origin, dimensions=shape)
 
     scalar = arrs.get('gscalar',None)
     if scalar is not None:
-        sp.point_data.scalars = scalar.ravel()
-        sp.point_data.scalars.name = "gscalar" # fixme, should use name, not type?
+        dat.point_data.scalars = scalar.ravel(order='F')
+        dat.point_data.scalars.name = "gscalar" # fixme, should use name, not type?
     vector = arrs.get('gvector',None)
     if vector is not None:
-        sp.point_data.vectors = numpy.asarray([vector[0].ravel(), vector[1].ravel(), vector[2].ravel()]).T
-        sp.point_data.vectors.name = "gvector"
+        dat.point_data.vectors = numpy.asarray([vector[i].ravel(order='F') for i in range(3)]).T
+        dat.point_data.vectors.name = "gvector"
 
-    write_data(sp, outfile)
+    write_data(dat, outfile)
     return
 
 save_raster_vtk = _save_mgrid_vtk
