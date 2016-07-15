@@ -27,21 +27,22 @@ doifneeded () {
 set -x
 
 doifneeded mesh		mesh -m twodee
-doifneeded boundary-u7	-P domain=7	boundary -b weighting -m $ident
+meshid=$ident
+
+doifneeded boundary-u7	-P domain=7	boundary -b weighting -m $meshid
 doifneeded raster-u7			raster -r fine -b $ident
+u7id=$ident
 
-# # boundaries
-# oifneeded 2              boundary -b drift drift
-# oifneeded 3 -P domain=18 boundary -b weighting v6
-# oifneeded 4              raster   -r coarse -b 3 v6
-# oifneeded 5 -P domain=6  boundary -b weighting u6
-# oifneeded 6              raster   -r coarse -b 5 u6
-# oifneeded 7 -P domain=30 boundary -b weighting w6
-# oifneeded 8              raster   -r coarse -b 7 w6
-# oifneeded 9              raster   -r coarse -b 2 drift
+doifneeded boundary-v7	-P domain=20	boundary -b weighting -m $meshid
+doifneeded raster-v7			raster -r fine -b $ident
+v7id=$ident
 
-# oifneeded 10             raster   -r fine -b 3 v6
-# oifneeded 11             raster   -r fine -b 5 u6
-# oifneeded 12             raster   -r fine -b 7 w6
-# oifneeded 13             raster   -r fine -b 2 drift
+doifneeded boundary-w7	-P domain=33	boundary -b weighting -m $meshid
+doifneeded raster-w7			raster -r fine -b $ident
+w7id=$ident
+
+doifneeded boundary-drift		boundary -b drift -m $meshid
+doifneeded raster-drift			raster -r fine -b $ident
+driftid=$ident
+
 
