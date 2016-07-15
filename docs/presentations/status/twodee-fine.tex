@@ -138,4 +138,57 @@
   \item Clear effect of divergent stepping field.  Any off-center tracks quickly diverge.
   \end{itemize}
 \end{frame}
+
+\begin{frame}
+  \frametitle{Problem is Non-square Voxels}
+  \begin{columns}
+    \begin{column}{0.5\textwidth}
+      \includegraphics[width=\textwidth]{twodee-fine-arrows-plan.png}      
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \includegraphics[width=\textwidth]{twodee-fine-arrows-side.png}      
+    \end{column}
+  \end{columns}
+  \footnotesize
+  \begin{itemize}
+  \item X-Z and Y-Z slices with vector field drawn.  Clearly vector
+    field in Y direction is wrong given potential.
+  \item Potential pixels are 0.1mm in X and Z, 5mm in Y.  This is
+    probably not being taken into account in the gradient!
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{After gradient fix - vector field}
+  \begin{columns}
+    \begin{column}{0.5\textwidth}
+      \includegraphics[width=\textwidth]{twodee-fine-arrows-plan-fixgrad.png}      
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \includegraphics[width=\textwidth]{twodee-fine-arrows-side-fixgrad.png}      
+    \end{column}
+  \end{columns}
+  \footnotesize
+  \begin{itemize}
+  \item Much more reasonable looking vectors.
+  \item Still some divergence toward top/bottom.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{After gradient fix - steps}
+  \begin{columns}
+    \begin{column}{0.5\textwidth}
+      \includegraphics[width=\textwidth]{twodee-fine-steps-plan-gradfixed.png}      
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \includegraphics[width=\textwidth]{twodee-fine-steps-side-gradfixed.png}      
+    \end{column}
+  \end{columns}
+  \footnotesize
+  \begin{itemize}
+  \item The steps no longer go wild high/low.
+  \end{itemize}
+\end{frame}
+
 \end{document}

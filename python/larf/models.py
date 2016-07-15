@@ -102,6 +102,7 @@ array_types = [
     'triangles', # triplets of indices into associated points (N_triangles,3)
     'domains',   # gives domain number for element at same index (N_triangles,)
     'coeff',     # boundary potential function coefficients (N_coeff,)
+    'linspace',  # Array of arguments to numpy.linspace()
     'mgrid',     # a numpy.meshgrid in 'ij' indexing (Ndim, n1, ..., n_Ndim)
     'gscalar',   # scalar values defined on an associated mgrid (n1, ..., n_Ndim)
     'gvector',   # components of vector values defined on associated mgrid (Ndim, n1, ..., n_Ndim)

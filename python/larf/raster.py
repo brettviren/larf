@@ -39,11 +39,14 @@ def linear(grid, dfun, nfun,
     u_reshaped = u_evaluated.reshape(mgrid[0].shape)
     print 'u_reshaped.shape=',u_reshaped.shape
 
+    dxyz = [(ls[1]-ls[0])/(ls[2]-1) for ls in linspaces]
+    u_grad = np.asarray(np.gradient(u_reshaped, *dxyz))
 
     return [
+        Array(type='linspace', name='bins', data = np.asarray(linspaces)),
         Array(type='mgrid', name='domain', data=mgrid),
         Array(type='gscalar', name='scalar', data = u_reshaped),
-        Array(type='gvector', name='gradient', data = np.asarray(np.gradient(u_reshaped))),
+        Array(type='gvector', name='gradient', data = u_grad),
 #        Array(type='points', name='points', data = points.T),
     ]
     
