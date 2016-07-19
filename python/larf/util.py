@@ -93,7 +93,7 @@ def mgrid_to_linspace(mg, expand = True):
         return x,y,z
     return (x[0],x[-1],len(x)), (y[0],y[-1],len(y)), (z[0],z[-1],len(z))
 
-def direction(vector):
+def vec_direction(vector):
     '''
     Return the vector, normalized.
     '''
@@ -103,3 +103,53 @@ def direction(vector):
         return vector
     return vector/mag
 
+
+def ray_center(ray):
+    ray = numpy.asarray(ray)
+    return 0.5*(ray[0] + ray[1])
+
+def ray_length(ray):
+    ray = numpy.asarray(ray)
+    diff = ray[1] - ray[0]
+    return math.sqrt(numpy.dot(diff,diff))
+
+def ray_direction(ray):
+    ray = numpy.asarray(ray)
+    return vec_direction(ray[1] - ray[0])
+
+def in_bounds(bounds, p):
+    bmin,bmax = bounds
+    for ind in range(3):
+        if p[ind] < bmin[ind]:
+            return False
+        if p[ind] > bmax[ind]:
+            return False
+    return True
+
+
+def box_intersection(point, proto, bounds):
+    '''
+    Return list of (distance, point) giving the distance from point
+    along vector proto to bounding box given by ray bounds.
+    '''
+    point = numpy.asarray(point)
+    proto = numpy.asarray(proto)
+    bounds = numpy.asarray(bounds)
+
+    hits = list()
+    for axis in range(3):
+        for sign,bb in zip([-1, 1], [bounds[0], bounds[1]]):
+            n = numpy.zeros((3,))
+            n[axis] = sign
+            rp = numpy.zeros((3,))
+            rp[axis] = bb[axis]
+            den = numpy.dot(n, proto)
+            if den == 0.0:
+                continue
+            nom = numpy.dot(n, rp - point)
+            t = nom/den
+            p = point + proto*t
+            if in_bounds(bounds, p):
+                hits.append((t, p))
+    hits.sort()
+    return hits

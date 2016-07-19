@@ -1,7 +1,7 @@
 import math
 import numpy as np
 from larf.units import cm, mm, um, deg
-from larf.util import unitify, direction
+from larf.util import unitify, vec_direction, ray_length, ray_center, ray_direction, in_bounds, box_intersection
 from larf.shapes import cylinder
 from larf.mesh import Object as MeshObject
 
@@ -148,9 +148,9 @@ def bounded(center=(0,0,0),     # center of wire planes / bounding box
     pV = pitch[1]*np.cross(xaxis, wV)
     pW = pitch[2]*np.cross(xaxis, wW)
 
-    oU = center + direction(pU) * offset[0]
-    oV = center + direction(pV) * offset[1]
-    oW = center + direction(pW) * offset[2]
+    oU = center + vec_direction(pU) * offset[0]
+    oV = center + vec_direction(pV) * offset[1]
+    oW = center + vec_direction(pW) * offset[2]
 
     oU[0] = planex[0]
     oV[0] = planex[1]
@@ -159,40 +159,6 @@ def bounded(center=(0,0,0),     # center of wire planes / bounding box
     return bboxray((bbmin, bbmax), (oU, oU+pU), (oV, oV+pV), (oW, oW+pW), **kwds)
 
 
-def ray_center(ray):
-    return 0.5*(ray[0] + ray[1])
-
-def in_bounds(bounds, p):
-    bmin,bmax = bounds
-    for ind in range(3):
-        if p[ind] < bmin[0]: return False
-        if p[ind] >= bmax[0]: return False
-    return True
-
-
-def box_intersection(point, proto, bounds):
-    '''
-    Return list of (distance, point) giving the distance from point
-    along vector proto to bounding box given by ray bounds.
-    '''
-
-    hits = list()
-    for axis in range(3):
-        for sign,bb in zip([-1, 1], [bounds[0], bounds[1]]):
-            n = np.asarray((0.,0.,0.))
-            n[axis] = sign
-            rp = np.asarray((0.,0.,0.))
-            rp[axis] = bb[axis]
-            den = np.dot(n, proto)
-            if den == 0.0:
-                continue
-            nom = np.dot(n, rp - point)
-            t = nom/den
-            p = point + proto*t
-            if in_bounds(bounds, p):
-                hits.append((t, p))
-    hits.sort()
-    return hits
 
 def bboxray_plane(bounds, step):
     '''
@@ -201,7 +167,7 @@ def bboxray_plane(bounds, step):
     '''
     xaxis = np.asarray((1,0,0)) # fixme: bakes in assumption of plane orientation!
     pitch = step[1] - step[0]
-    proto = direction(np.cross(pitch,xaxis))
+    proto = vec_direction(np.cross(pitch,xaxis))
 
     wires = list()
 
@@ -210,7 +176,7 @@ def bboxray_plane(bounds, step):
         hits = box_intersection(point, proto, bounds)
         if len(hits) != 2:
             break
-        wire = [p for t,p in hits]
+        wire = np.asarray([p for t,p in hits])
         wires.append(wire)
         point = ray_center(wire) - pitch
     wires.reverse()
@@ -220,18 +186,11 @@ def bboxray_plane(bounds, step):
         hits = box_intersection(point, proto, bounds)
         if len(hits) != 2:
             break
-        wire = [p for t,p in hits]
+        wire = np.asarray([p for t,p in hits])
         wires.append(wire)
         point = ray_center(wire) + pitch
-        
+
     return wires
-
-def ray_length(ray):
-    diff = ray[1] - ray[0]
-    return math.sqrt(np.dot(diff,diff))
-
-def ray_direction(ray):
-    return direction(ray[1] - ray[0])
 
 def bboxray(bounds, upitch, vpitch, wpitch, radius=150*um, lcar=1*cm):
     '''
@@ -239,17 +198,23 @@ def bboxray(bounds, upitch, vpitch, wpitch, radius=150*um, lcar=1*cm):
     the bounding box.
     '''
     endpoints = list()
-    angles = list()
     for pitch in [upitch, vpitch, wpitch]:
-         endpoints += bboxray_plane(bounds, pitch)
-         angles.append(math.acos(np.dot(ray_direction(pitch), (0,0,1))))
+        ep = bboxray_plane(bounds, pitch)
+        endpoints += ep
+    
 
     ret = list()
-    for ray,ang in zip(endpoints, angles):
+    for count, ray in enumerate(endpoints):
+        print 'RAY',ray
         wire = cylinder(ray_length(ray), radius, lcar=lcar)
         mo = MeshObject()
         mo.gen(wire)
+        rdir = ray_direction(ray)
+        ang = math.acos(np.dot(rdir, (0.0, 0.0, 1.0)))
+        print count,ang
         mo.rotate(ang)
-        mo.translate(ray_center(ray))
+        cen = ray_center(ray)
+        print 'CENTER',cen
+        mo.translate(cen)
         ret.append(mo)
     return ret
