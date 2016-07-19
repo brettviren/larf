@@ -1,7 +1,7 @@
 import math
 import numpy as np
 from larf.units import cm, mm, um, deg
-from larf.util import unitify
+from larf.util import unitify, direction
 from larf.shapes import cylinder
 from larf.mesh import Object as MeshObject
 
@@ -119,3 +119,137 @@ def symmetric(angle=60*deg, length=10*cm, radius=150*um, gap=None, pitch=5*mm, n
     return ret
 
 
+def bounded(center=(0,0,0),     # center of wire planes / bounding box
+            size=(10*mm, 40*cm, 40*cm), # bounding box in x, y and z directions
+            pitch=(3*mm, 3*mm, 3*mm), # pitch distance of each plane
+            angle=(60*deg, -60*deg, 0*deg), # wire angle w.r.t. Y
+            offset=(0,0,1.5*mm),            # offset in pitch direction
+            planex=(3*mm, 0*mm, -3*mm),     # location of wire plane in X direction
+            **kwds
+            ):
+    '''
+    Produce wires bounded by a box
+    '''
+
+    # cribbed from WCT's wire-cell-gen's WireParams
+    center = np.asarray(center)
+    size = np.asarray(size)
+    bbmin = center - 0.5*size
+    bbmax = center + 0.5*size
+
+    # wire vector
+    wU = np.asarray((0, math.cos(angle[0]), math.sin(angle[0])))
+    wV = np.asarray((0, math.cos(angle[1]), math.sin(angle[1])))
+    wW = np.asarray((0, math.cos(angle[2]), math.sin(angle[2])))
+
+    # pitch vector
+    xaxis = np.asarray((1,0,0))
+    pU = pitch[0]*np.cross(xaxis, wU)
+    pV = pitch[1]*np.cross(xaxis, wV)
+    pW = pitch[2]*np.cross(xaxis, wW)
+
+    oU = center + direction(pU) * offset[0]
+    oV = center + direction(pV) * offset[1]
+    oW = center + direction(pW) * offset[2]
+
+    oU[0] = planex[0]
+    oV[0] = planex[1]
+    oW[0] = planex[2]
+
+    return bboxray((bbmin, bbmax), (oU, oU+pU), (oV, oV+pV), (oW, oW+pW), **kwds)
+
+
+def ray_center(ray):
+    return 0.5*(ray[0] + ray[1])
+
+def in_bounds(bounds, p):
+    bmin,bmax = bounds
+    for ind in range(3):
+        if p[ind] < bmin[0]: return False
+        if p[ind] >= bmax[0]: return False
+    return True
+
+
+def box_intersection(point, proto, bounds):
+    '''
+    Return list of (distance, point) giving the distance from point
+    along vector proto to bounding box given by ray bounds.
+    '''
+
+    hits = list()
+    for axis in range(3):
+        for sign,bb in zip([-1, 1], [bounds[0], bounds[1]]):
+            n = np.asarray((0.,0.,0.))
+            n[axis] = sign
+            rp = np.asarray((0.,0.,0.))
+            rp[axis] = bb[axis]
+            den = np.dot(n, proto)
+            if den == 0.0:
+                continue
+            nom = np.dot(n, rp - point)
+            t = nom/den
+            p = point + proto*t
+            if in_bounds(bounds, p):
+                hits.append((t, p))
+    hits.sort()
+    return hits
+
+def bboxray_plane(bounds, step):
+    '''
+    Return a collection of line endpoints which fit inside bounds an
+    equally pitched according to step.
+    '''
+    xaxis = np.asarray((1,0,0)) # fixme: bakes in assumption of plane orientation!
+    pitch = step[1] - step[0]
+    proto = direction(np.cross(pitch,xaxis))
+
+    wires = list()
+
+    point = step[0] - pitch
+    while in_bounds(bounds, point):
+        hits = box_intersection(point, proto, bounds)
+        if len(hits) != 2:
+            break
+        wire = [p for t,p in hits]
+        wires.append(wire)
+        point = ray_center(wire) - pitch
+    wires.reverse()
+
+    point = step[0]
+    while in_bounds(bounds, point):
+        hits = box_intersection(point, proto, bounds)
+        if len(hits) != 2:
+            break
+        wire = [p for t,p in hits]
+        wires.append(wire)
+        point = ray_center(wire) + pitch
+        
+    return wires
+
+def ray_length(ray):
+    diff = ray[1] - ray[0]
+    return math.sqrt(np.dot(diff,diff))
+
+def ray_direction(ray):
+    return direction(ray[1] - ray[0])
+
+def bboxray(bounds, upitch, vpitch, wpitch, radius=150*um, lcar=1*cm):
+    '''
+    Make wires described by the three pitch rays and which fit inside
+    the bounding box.
+    '''
+    endpoints = list()
+    angles = list()
+    for pitch in [upitch, vpitch, wpitch]:
+         endpoints += bboxray_plane(bounds, pitch)
+         angles.append(math.acos(np.dot(ray_direction(pitch), (0,0,1))))
+
+    ret = list()
+    for ray,ang in zip(endpoints, angles):
+        wire = cylinder(ray_length(ray), radius, lcar=lcar)
+        mo = MeshObject()
+        mo.gen(wire)
+        mo.rotate(ang)
+        mo.translate(ray_center(ray))
+        ret.append(mo)
+    return ret

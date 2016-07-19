@@ -1,5 +1,8 @@
 import larf.util
+from larf import units
 from collections import defaultdict
+import numpy
+
 
 class weighting(object):
     def __init__(self, domain=0, potential=1.0, **kwds):
@@ -50,3 +53,30 @@ class drift(object):
         f = ', '.join(["%s:%s" %(k,v) for k,v in sorted(self.counts.items())])
         m = ', '.join(["%s:%s" %(k,v) for k,v in sorted(self.unknown.items())])
         return 'domains given: %d, set: %d, tried: %d\n\tfound:%s\n\tmissed:%s' % (len(self.dvm), self.nset, self.ntot,f,m)
+
+class cagedrift(object):
+    def __init__(self,
+                 cage_domain = 0, 
+                 cage_field=500*units.V/units.cm, 
+                 cage_potential = 0*units.V, # potential at cage origin
+                 cage_origin=(0,0,0), 
+                 cage_axis=(1,0,0),
+                 **kwds):
+        self.domain = cage_domain
+        self.field = cage_field
+        self.potential = cage_potential
+        self.origin = numpy.asarray(cage_origin)
+        self.axis = numpy.asarray(cage_axis)
+        self.drift = drift(**kwds)
+
+    def __call__(self, pos, normal, index, result):
+        'Set the potential on a surface'
+        if index != self.domain:
+            self.drift(pos,normal,index,result)
+            return
+
+        pos = numpy.asarray(pos)
+        x = numpy.dot(pos-self.origin, self.axis)
+        result[0] = self.potential + self.field * x
+        return
+    

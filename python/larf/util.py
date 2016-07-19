@@ -1,7 +1,8 @@
 import re
 import numbers
 import larf.units
-
+import math
+import numpy
     
 def get_method(dotname):
     modname,methname = dotname.rsplit('.',1)
@@ -91,4 +92,14 @@ def mgrid_to_linspace(mg, expand = True):
     if expand:
         return x,y,z
     return (x[0],x[-1],len(x)), (y[0],y[-1],len(y)), (z[0],z[-1],len(z))
+
+def direction(vector):
+    '''
+    Return the vector, normalized.
+    '''
+    vector = numpy.asarray(vector)
+    mag = math.sqrt(numpy.dot(vector,vector))
+    if mag == 0.0:
+        return vector
+    return vector/mag
 

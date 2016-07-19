@@ -4,44 +4,59 @@
 import math
 from units import mm, cm, um
 
-def oldcylinder(length=10*mm, radius=1.0*mm, lcar=1.0, **kwds):
-    geostr = '''
-radius = {radius};
-length = {length};
-lcar = {lcar};
-'''.format(**locals())
+def rextru(dx=20*cm, dy=20*cm, dz=1*cm, lcar=1.0*mm, **kwds):
+    '''
+    A rectangular extrusion centered at origin, extruded in Z direction.
+    '''
+    geostr='''
+lcar={lcar};
+dx={dx};
+dy={dy};
+dz={dz};
+    '''.format(**locals())
     geostr += '''
-Point(1) = { radius, 0, 0, lcar};
-Point(2) = {0,  radius, 0, lcar};
-Point(3) = {-radius, 0, 0, lcar};
-Point(4) = {0, -radius, 0, lcar};
-Point(5) = {0,0,0};
+Point(1) = { dx,  dy, -dz, lcar};
+Point(2) = {-dx,  dy, -dz, lcar};
+Point(3) = {-dx, -dy, -dz, lcar};
+Point(4) = { dx, -dy, -dz, lcar};
 
-Circle(1) = {1,5,2};
-Circle(2) = {2,5,3};
-Circle(3) = {3,5,4};
-Circle(4) = {4,5,1};
+Line(1) = {1,2};
+Line(2) = {2,3};
+Line(3) = {3,4};
+Line(4) = {4,1};
+Extrude{{0,0,2*dz}, {0,0,1}, {0,0,0}, 0}{ Line{-1,-2,-3,-4}; }
+Mesh.Algorithm = 6;
+    '''
+    return geostr
 
-Extrude{0,0,length}{ Line{-1,-2,-3,-4}; }
+def rectangle(dx=20*cm, dy=20*cm, lcar=1.0*mm, **kwds):
+    '''
+    A rectangle centered at the origin normal in Z direction.
+    '''
+    geostr='''
+lcar={lcar};
+dx={dx};
+dy={dy};
+'''.format(**locals())
+
+    geostr += '''
+Point(1) = { dx,  dy, 0.0, lcar};
+Point(2) = {-dx,  dy, 0.0, lcar};
+Point(3) = {-dx, -dy, 0.0, lcar};
+Point(4) = { dx, -dy, 0.0, lcar};
+
+Line(1) = {1,2};
+Line(2) = {2,3};
+Line(3) = {3,4};
+Line(4) = {4,1};
+
+Line Loop(5) = {1,2,3,4};
+
+Plane Surface(6) = {5};
 
 Mesh.Algorithm = 6;
 '''
-    return geostr
-
-
-
-#     geostr += '''
-# Point(1) = { radius, 0, 0, lcar};
-# Point(2) = {0,  radius, 0, lcar};
-# Point(3) = {-radius, 0, 0, lcar};
-# Point(4) = {0, -radius, 0, lcar};
-# Point(5) = {0,0,0};
-
-# Circle(1) = {1,5,2};
-# Circle(2) = {2,5,3};
-# Circle(3) = {3,5,4};
-# Circle(4) = {4,5,1};
-# '''
+    return geostr;
 
 
 def cylinder(length=10.0*mm, radius=1.0*mm, lcar=1.0*mm, nsegments=6, **kwds):
@@ -70,8 +85,8 @@ lcar = {lcar};
     geostr += 'Extrude{{0,0,length}, {0,0,1}, {0,0,0}, 2*Pi}{ Line{%s}; }\n' % linenums
     geostr += 'Mesh.Algorithm = 6;\n'
 
-    #print geostr
     return geostr
+    
 
 
 def box(dx=1*mm, dy=20*cm, dz=20*cm, lcar=1.0*mm, **kwds):
@@ -123,3 +138,31 @@ Surface Loop(25) = {14, 22, 20, 18, 16, 24};
 Mesh.Algorithm = 6;
 '''
     return geostr
+
+
+
+
+def oldcylinder(length=10*mm, radius=1.0*mm, lcar=1.0, **kwds):
+    geostr = '''
+radius = {radius};
+length = {length};
+lcar = {lcar};
+'''.format(**locals())
+    geostr += '''
+Point(1) = { radius, 0, 0, lcar};
+Point(2) = {0,  radius, 0, lcar};
+Point(3) = {-radius, 0, 0, lcar};
+Point(4) = {0, -radius, 0, lcar};
+Point(5) = {0,0,0};
+
+Circle(1) = {1,5,2};
+Circle(2) = {2,5,3};
+Circle(3) = {3,5,4};
+Circle(4) = {4,5,1};
+
+Extrude{0,0,length}{ Line{-1,-2,-3,-4}; }
+
+Mesh.Algorithm = 6;
+'''
+    return geostr
+
