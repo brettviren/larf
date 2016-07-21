@@ -1,0 +1,67 @@
+% TEXINPUTS=.:$HOME/git/bvtex: latexmk  -pdf <main>.tex
+\documentclass[xcolor=dvipsnames]{beamer}
+
+\input{defaults}
+\input{beamer/preamble}
+
+\setbeamertemplate{navigation symbols}{}
+% \setbeamertemplate{background}[grid][step=1cm]
+
+\usepackage{siunitx}
+\usepackage{xmpmulti}
+\usepackage[export]{adjustbox}
+
+\usepackage[outline]{contour}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows}
+\usetikzlibrary{positioning}
+
+\definecolor{bvtitlecolor}{rgb}{0.98, 0.92, 0.84}
+\definecolor{bvoutline}{rgb}{0.1, 0.1, 0.1}
+
+\renewcommand{\bvtitleauthor}{Brett Viren}
+\renewcommand{\bvtit}{LARF 2D}
+\renewcommand{\bvtitle}{\LARGE LARF Caged Gometry\\\textbf{Notes and Problems}}
+\renewcommand{\bvevent}{notes}
+\renewcommand{\bvbeamerbackground}{}
+
+\newcommand{\microboone}{MicroBooNE\xspace}
+
+
+\begin{document}
+\input{beamer/title.tex}
+
+\begin{frame}
+  \frametitle{Caged Geometry Overview}
+
+  New features:
+  \begin{itemize}
+  \item Planar (instead of finite thickness) cathode.
+  \item Field cage.
+  \item Bounded, fully filled wire planes.
+  \end{itemize}
+
+  Motivation for changes:
+  \begin{itemize}
+  \item More realistic.
+  \item Make drift field more uniform.
+  \item Get ready to calculate for more wires.
+  \item Can use to look at edge effects.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \begin{columns}
+    \begin{column}{0.5\textwidth}
+      \includegraphics[width=\textwidth]{caged-x.pdf}
+
+      \includegraphics[width=\textwidth]{caged-z.pdf}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \includegraphics[width=\textwidth]{caged-iso.pdf}
+
+      \includegraphics[width=\textwidth]{caged-y.pdf}
+    \end{column}
+  \end{columns}
+\end{frame}
+\end{document}

@@ -80,3 +80,27 @@ class cagedrift(object):
         result[0] = self.potential + self.field * x
         return
     
+class gradient(object):
+    def __init__(self, domain_field_map=None, **kwds):
+        self.dfm = larf.util.expand_tuple_list(domain_field_map)
+        print self.dfm
+        self.ntot = 0
+        self.nset = 0
+        self.counts = defaultdict(int)
+        self.unknown = defaultdict(int)
+    def __call__(self, pos, normal, index, result):
+        self.ntot += 1
+        field = self.dfm.get(index, None)
+        if field is None:
+            self.unknown[index] += 1
+            print 'Unknown domain for gradient: %d' % index
+            return
+        potential = field * pos[0]
+        result[0] = potential
+        self.nset += 1
+        self.counts[index] += 1
+        return
+    def __str__(self):
+        f = ', '.join(["%s:%s" %(k,v) for k,v in sorted(self.counts.items())])
+        m = ', '.join(["%s:%s" %(k,v) for k,v in sorted(self.unknown.items())])
+        return 'domains given: %d, set: %d, tried: %d\n\tfound:%s\n\tmissed:%s' % (len(self.dfm), self.nset, self.ntot,f,m)

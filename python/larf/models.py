@@ -46,6 +46,7 @@ class JSONBLOB(types.TypeDecorator):
     def copy(self, **kw):
         return JSONBLOB(self.impl.length)    
 
+
 result_types = [
     'mesh',
     'boundary',
@@ -100,8 +101,8 @@ class Result(Base):
 array_types = [
     'points',    # N-ordered points (x,y,z) in 3-space (N_points,3)
     'triangles', # triplets of indices into associated points (N_triangles,3)
-    'domains',   # gives domain number for element at same index (N_triangles,)
-    'coeff',     # boundary potential function coefficients (N_coeff,)
+    'ptscalar',  # boundary potential function coefficients defined on points (eg, dirichlet)
+    'elscalar',  # boundary potential function coefficients defined on elements (eg, neumann, domains)
     'linspace',  # Array of arguments to numpy.linspace()
     'mgrid',     # a numpy.meshgrid in 'ij' indexing (Ndim, n1, ..., n_Ndim)
     'gscalar',   # scalar values defined on an associated mgrid (n1, ..., n_Ndim)
@@ -117,7 +118,7 @@ class Array(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, default='')
-    type = Column(String, default='')
+    type = Column(Enum(*array_types))
     data = Column(NumpyArray)
 
     result_id = Column(Integer, ForeignKey("results.id"))

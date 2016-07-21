@@ -64,13 +64,14 @@ def save_mesh_vtk(result, outfile, **kwds):
     arrs = result.array_data_by_type()
     points = arrs['points']
     triangles = arrs['triangles']
-    domains = arrs['domains']
+    domains = arrs['elscalar']
 
     pd = tvtk.PolyData()
     pd.points = points
     pd.polys = triangles
-    pd.point_data.scalars = domains
-    pd.point_data.scalars.name = "domains"
+
+    pd.cell_data.scalars = domains
+    pd.cell_data.scalars.name = "domains"
 
     write_data(pd, outfile)
     return
@@ -84,15 +85,25 @@ def save_boundary_vtk(result, outfile, **kwds):
     points = arrs['points']
     triangles = arrs['triangles']
 
-    arrs = result.array_data_by_name()
-    dirichlet = arrs['dirichlet'] # on points
-    neumann = arrs['neumann']   # on elements
-
     pd = tvtk.PolyData()
     pd.points = points
     pd.polys = triangles
-    pd.point_data.scalars = dirichlet
-    pd.point_data.scalars.name = "dirichlet"
+
+    if len(result.arrays) > 2:
+        print 'Warning: got more boundary arrays than expected.  Last one of a type wins.'
+        for arr in result.arrys:
+            print arr.type, arr.name, arr.data.shape
+
+    for arr in result.arrays:
+        if arr.type == 'ptscalar':
+            pd.point_data.scalars = arr.data
+            pd.point_data.scalars.name = arr.name
+            continue
+        if arr.type == 'elscalar':
+            pd.cell_data.scalars = arr.data
+            pd.cell_data.scalars.name = arr.name
+            continue
+        print 'Warning: unknown array type: %s %s %s' % (arr.type, arr.name, arr.data.shape)
 
     write_data(pd, outfile)
     return
@@ -125,79 +136,3 @@ def save_mesh_msh(result, outfile, **kwds):
     grid = larf.mesh.result_to_grid(result)
     bempp.api.export(grid=grid, file_name = outfile)
 
-
-
-def load_meshfile(meshfile):
-    if meshfile.rsplit('.',1)[1] not in ['json','msh','npz']:
-        raise click.ClickException("Unknown data format for file %s" % meshfile)
-
-    if meshfile.endswith('.json'):
-        from larf.mesh import Scene
-        scene = Scene()
-        scene.loads(open(meshfile).read())
-        return scene.grid()
-
-    if meshfile.endswith('.msh'):    
-        import bempp.api
-        return bempp.api.import_grid(meshfile)
-
-    if meshfile.endswith('.npz'):
-        import numpy
-        import bempp.api as bem
-        dat = numpy.load(meshfile).items()
-        dat = {k:v for k,v in dat}
-        fac = bem.GridFactory()
-        for p in dat['points']:
-            fac.insert_vertex(p) 
-        tri = dat['triangles']
-        dom = dat.get('domains', numpy.ones(len(tri)))
-        for t,d in zip(tri,dom):
-            fac.insert_element(t, d)
-        return fac.finalize()
-        
-        
-
-
-
-#### cut from cli.py.  need to fix up for new sqlite centered store.
-    
-
-#@cli.command()
-#@click.argument('meshfile', type=click.Path())
-def meshinfo(meshfile):
-    '''
-    Print some info about a mesh file.
-    '''
-    grid = load_meshfile(meshfile)
-    dump_grid(grid)
-    msg = "load grid with"
-    for ind, thing in enumerate(codims):
-        msg += " %d %s" % (grid.leaf_view.entity_count(ind), thing)
-    ndomains = len(set(grid.leaf_view.domain_indices))
-    msg += " %d unique domains" % ndomains
-    click.echo(msg)
-
-#@cli.command()
-#@click.argument('npzfile', type=click.Path())
-def npzinfo(npzfile):
-    '''
-    Print some info about a numpy .npz file.
-    '''
-    dat = numpy.load(npzfile).items()
-    dat = {k:v for k,v in dat}
-    click.echo('%d arrays in %s' % (len(dat.keys()), npzfile))
-    for k,v in sorted(dat.items()):
-        click.echo('\t%s: %s' % (k, v.shape))
-
-
-#@cli.command()
-def bemppdump():
-    import bempp.api
-    q = bempp.api.global_parameters.quadrature
-    print 'double_single', q.double_singular
-    for dist in ['near','medium','far']:
-        nmf = getattr(q,dist)
-        print dist
-        for name in ['max_rel_dist','single_order','double_order']:
-            thing = getattr(nmf, name, 'n/a')
-            print '\t%s = %s' % (name, thing)

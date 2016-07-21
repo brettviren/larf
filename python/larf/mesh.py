@@ -21,11 +21,12 @@ def dict2array(d):
 
 class Object(object):
     "A mesh on one object"
-    def __init__(self, points=None, elements=None):
+    def __init__(self, points=None, elements=None, domain=None):
         if points is None:
             points = numpy.ndarray((0,3), dtype='float')
         self.points = points
         self.elements = elements or dict()
+        self.domain = domain
         
     def __str__(self):
         return "<larf.mesh.Object %d pts, %d eles>" % (len(self.points), len(self.triangle))
@@ -97,8 +98,11 @@ class Scene(object):
     def __init__(self):
         self.objects = defaultdict(list)
 
-    def add(self, mobj, domain=0):
+    def add(self, mobj, domain=None):
         "Add a MesshedObject to the scene with the given domain number."
+        if domain is None:
+            domain = mobj.domain or 0
+        mobj.domain = domain
         self.objects[domain].append(mobj)
 
     def grid(self):
@@ -204,8 +208,9 @@ def result_to_grid(res):
     '''
     arrs = {a.type:a.data for a in res.arrays}
 
-    pts, tri, dom = arrs['points'],arrs['triangles'],arrs['domains']
+    pts, tri, dom = arrs['points'],arrs['triangles'],arrs['elscalar']
     assert pts.shape[1] == 3
+    assert len(tri) == len(dom)
     pts, tri = make_unique(pts, tri)
     return bem.grid_from_element_data(pts.T,tri.T,dom)
 
@@ -215,6 +220,6 @@ def result_to_grid_one_by_one(res):
 
     for p in arrs['points']:
         fac.insert_vertex(p)
-    for t,d in zip(arrs['triangles'], arrs['domains']):
+    for t,d in zip(arrs['triangles'], arrs['elscalar']):
         fac.insert_element(t,d)
     return fac.finalize()

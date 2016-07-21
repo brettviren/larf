@@ -7,13 +7,13 @@ from larf.mesh import Object as MeshObject
 
 
 
-def prototype(length=10*cm, radius=150*um, angle=0*deg, axis=None, lcar=None, **kwds):
+def prototype(length=10*cm, radius=150*um, angle=0*deg, axis=None, lcar=None, domain=0, **kwds):
     "Return a larf.mesh.Object for a prototype wire along Z direction centered at 0,0,0"
     if lcar is None:
         lcar = radius
     cyl = cylinder(length, radius, lcar, **kwds)
 
-    mo = MeshObject()
+    mo = MeshObject(domain=domain)
     mo.gen(cyl)
     shift = (0,0,-0.5*length)
     mo.translate(shift)
@@ -23,7 +23,7 @@ def prototype(length=10*cm, radius=150*um, angle=0*deg, axis=None, lcar=None, **
         mo.rotate(angle, axis)
     return mo
 
-def array(proto, nwires, pitch, origin=(0,0,0), **kwds):
+def array(proto, nwires, pitch, origin=(0,0,0), domain=0, **kwds):
     """Replicate <nwires> copies of prototype <proto> along vector <pitch>
     such that the array is centered at the origin.  The original
     prototype object is not included in the returned list.
@@ -35,6 +35,8 @@ def array(proto, nwires, pitch, origin=(0,0,0), **kwds):
     ret = list()
     for count in range(nwires):
         copy = proto.copy()
+        if domain is not None:
+            copy.domain = domain+count
         copy.translate(start + count*pitch)
         ret.append(copy)
     return ret
@@ -44,16 +46,16 @@ def array(proto, nwires, pitch, origin=(0,0,0), **kwds):
 ## strings for their arguments and have a **kwds to soak up any extra
 ## parameters that may be specified.
 
-def one(length=10*cm, radius=150*um, angle=0*deg, axis="x", lcar=None, **kwds):
+def one(length=10*cm, radius=150*um, angle=0*deg, axis="x", lcar=None, domain=0, **kwds):
     "Return a list of one mesh.Object which is a single wire "
 
     ind = "xyz".index(axis.lower())
     axis = [0,0,0]
     axis[ind] = 1.0
-    p = prototype(length, radius, angle, axis, lcar, **kwds)
+    p = prototype(length, radius, angle, axis, lcar, domain=domain, **kwds)
     return p
 
-def parallel(length=10*cm, radius=150*um, gap=None, pitch=5*mm, nwires=0, lcar=None, origin=(0,0,0), **kwds):
+def parallel(length=10*cm, radius=150*um, gap=None, pitch=5*mm, nwires=0, lcar=None, origin=(0,0,0), domains=(100,200,300), **kwds):
     """Return a list of mesh.Objects for a triple of planes with <nwires>
     per plane and with wires parallel to the Y axis, pitch along Z.
     Planes centered with first at X=+gap, third at X=-gap.
@@ -70,9 +72,9 @@ def parallel(length=10*cm, radius=150*um, gap=None, pitch=5*mm, nwires=0, lcar=N
     proto = prototype(length, radius, 90*deg, lcar=lcar, **kwds)
     
     ret = list()
-    ret += array(proto, nwires, pitchv, origin+(+gap, 0, 0)) # u
-    ret += array(proto, nwires, pitchv, origin+(   0, 0, 0)) # v
-    ret += array(proto, nwires, pitchv, origin+(-gap, 0, 0)) # w
+    ret += array(proto, nwires, pitchv, origin+(+gap, 0, 0), domain=domains[0]) # u
+    ret += array(proto, nwires, pitchv, origin+(   0, 0, 0), domain=domains[0]) # v
+    ret += array(proto, nwires, pitchv, origin+(-gap, 0, 0), domain=domains[0]) # w
     return ret
 
 def symmetric(angle=60*deg, length=10*cm, radius=150*um, gap=None, pitch=5*mm, nwires=0, woffset=None, origin=(0,0,0), lcar=None, **kwds):
@@ -125,6 +127,7 @@ def bounded(center=(0,0,0),     # center of wire planes / bounding box
             angle=(60*deg, -60*deg, 0*deg), # wire angle w.r.t. Y
             offset=(0,0,1.5*mm),            # offset in pitch direction
             planex=(3*mm, 0*mm, -3*mm),     # location of wire plane in X direction
+            domains=(100, 200, 300),        # starting domains for each plain
             **kwds
             ):
     '''
@@ -156,7 +159,7 @@ def bounded(center=(0,0,0),     # center of wire planes / bounding box
     oV[0] = planex[1]
     oW[0] = planex[2]
 
-    return bboxray((bbmin, bbmax), (oU, oU+pU), (oV, oV+pV), (oW, oW+pW), **kwds)
+    return bboxray((bbmin, bbmax), (oU, oU+pU), (oV, oV+pV), (oW, oW+pW), domains=domains, **kwds)
 
 
 
@@ -192,29 +195,32 @@ def bboxray_plane(bounds, step):
 
     return wires
 
-def bboxray(bounds, upitch, vpitch, wpitch, radius=150*um, lcar=1*cm):
+def bboxray(bounds, upitch, vpitch, wpitch, radius=150*um, lcar=1*cm, domains=(100,200,300), **kwds):
     '''
     Make wires described by the three pitch rays and which fit inside
     the bounding box.
     '''
-    endpoints = list()
-    for pitch in [upitch, vpitch, wpitch]:
-        ep = bboxray_plane(bounds, pitch)
-        endpoints += ep
-    
-
     ret = list()
-    for count, ray in enumerate(endpoints):
-        print 'RAY',ray
-        wire = cylinder(ray_length(ray), radius, lcar=lcar)
-        mo = MeshObject()
-        mo.gen(wire)
-        rdir = ray_direction(ray)
-        ang = math.acos(np.dot(rdir, (0.0, 0.0, 1.0)))
-        print count,ang
-        mo.rotate(ang)
-        cen = ray_center(ray)
-        print 'CENTER',cen
-        mo.translate(cen)
-        ret.append(mo)
+
+    for pname, pitch, start_domain in zip("UVW", [upitch, vpitch, wpitch], domains):
+        endpoints = bboxray_plane(bounds, pitch)
+        print "Plane '%s' has %d wires" % (pname, len(endpoints))
+        for count, ray in enumerate(endpoints):
+
+            rdir = ray_direction(ray)
+            rlen = ray_length(ray)
+            rcen = ray_center(ray)
+
+            ang = -math.acos(np.dot(rdir, (0.0, 0.0, 1.0)))
+
+            wire = cylinder(rlen, radius, lcar=lcar, **kwds)
+            mo = MeshObject(domain=start_domain+count)
+            mo.gen(wire)
+
+            mo.translate((0,0,-0.5*rlen))
+            mo.rotate(ang)
+            mo.translate(rcen)
+
+            ret.append(mo)
+
     return ret

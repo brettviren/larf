@@ -302,12 +302,17 @@ def cmd_mesh(ctx, mesh, name):
         mo = meth(**params)
         if not type(mo) == list:
             mo = [mo]
+
+        first = len(molist)+1
+        last = first + len(mo)-1
+        print "%s produces domain %d-%d, inclusive." % (methname, first, last)
+        print "\tdomains: %s" % (', '.join(['%d'%m.domain for m in mo]), )
         molist += mo
         
     from larf.mesh import Scene
     scene = Scene()
-    for count, mo in enumerate(molist):
-        scene.add(mo, count+1)
+    for mo in molist:
+        scene.add(mo)
 
     grid = scene.grid()
     lv = grid.leaf_view
@@ -315,7 +320,7 @@ def cmd_mesh(ctx, mesh, name):
     res = Result(name=name, type='mesh',
                  params = calls,
                  arrays = [
-                     Array(type='domains', name='domains', data=lv.domain_indices),
+                     Array(type='elscalar', name='domains', data=lv.domain_indices),
                      Array(type='points', name='points', data=lv.vertices.T),
                      Array(type='triangles', name='triangles', data=lv.elements.T),
                      ])
@@ -374,8 +379,8 @@ def cmd_boundary(ctx, boundary, mesh, name):
     res = Result(name=name, type='boundary', parents=[meshres],
                  params=dict(method=methname, params=methparams),
                  arrays = [
-                     Array(name='dirichlet', type='coeff', data=dfun.coefficients),
-                     Array(name='neumann', type='coeff', data=nfun.coefficients),
+                     Array(name='dirichlet', type='ptscalar', data=dfun.coefficients),
+                     Array(name='neumann', type='elscalar', data=nfun.coefficients),
                  ])
     ses.add(res)
     ses.flush()
@@ -416,7 +421,7 @@ def cmd_copy_boundary(ctx, boundary, name):
     meshres = Result(name=name, type='mesh',
                      params = old_meshres.params,
                      arrays = [
-                         Array(type='domains', name='domains', data=lv.domain_indices),
+                         Array(type='elscalar', name='domains', data=lv.domain_indices),
                          Array(type='points', name='points', data=lv.vertices.T),
                          Array(type='triangles', name='triangles', data=lv.elements.T),
                      ])
@@ -427,8 +432,8 @@ def cmd_copy_boundary(ctx, boundary, name):
     potres = Result(name=name, type='boundary', parents=[meshres],
                     params=old_meshres.params,
                     arrays = [
-                        Array(name='dirichlet', type='coeff', data=dfun.coefficients),
-                        Array(name='neumann', type='coeff', data=nfun.coefficients),
+                        Array(name='dirichlet', type='ptscalar', data=dfun.coefficients),
+                        Array(name='neumann', type='elscalar', data=nfun.coefficients),
                     ])
     ses.add(potres)
     ses.flush()
