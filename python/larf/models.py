@@ -53,7 +53,8 @@ result_types = [
     'raster',
     'velocity',                 # fixme: just make raster?
     'stepping',
-    'current',                  # fixme: rename waveform
+    'current',
+    'waveform',
 ]
 
 result_provenance = Table(
@@ -111,7 +112,7 @@ array_types = [
     'pscalar',   # scalar value defined at points on path (N_path,)
     'ptuple',    # tuple of n values defined at points on path (N_path, n)
     'steps',     # (N_path, N_steps+1, 4) arrays holding 4-points (x,y,z,t) along step paths.
-    'waveforms', # (N_electrodes, N_steps+1, 2) arrays holding (time, current) tuples
+    'waveforms', # (N_waveforms, N_ticks) arrays holding digitized quantity (current)
 ]
 class Array(Base):
     __tablename__ = 'arrays'

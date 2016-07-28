@@ -706,16 +706,17 @@ def cmd_step(ctx, step, velocity, name):
     announce_result('steps', res)
     return
 
+# fixme: make velocity optional and pick it up from the current fields parent
 @cli.command("waveforms")
+@click.option('-w', '--waveform', 
+              help='The "[waveform]" configuration file section.')
+@click.option('-v', '--velocity',
+              help='The velocity field result.')
 @click.option('-c', '--current', 
-              help='The "[current]" configuration file section.')
-@click.option('-s', '--steps',
-              help='The input steps.')
-@click.option('-w', '--weighting', 
-              help='The input weighting field')
+              help='The current field result')
 @click.argument('name')
 @click.pass_context
-def cmd_waveforms(ctx, current, steps, weighting, name):
+def cmd_waveforms(ctx, waveform, velocity, current, name):
     '''
     Convert steps to electrode current as a function of time
     '''
@@ -723,39 +724,47 @@ def cmd_waveforms(ctx, current, steps, weighting, name):
     import larf.config
     from larf.models import Result, Array
 
-    if not current:
-        current = name
+    if not waveform:
+        waveform = name
 
     cfg = ctx.obj['cfg']
-    tocall = larf.config.methods_params(cfg, 'current %s' % current)
+    tocall = larf.config.methods_params(cfg, 'waveform %s' % waveform)
 
     ses = ctx.obj['session']
-    stepres= larf.store.result_typed(ses, 'stepping', steps)
-    steps = stepres.array_data_by_type()['steps']
+    velores = larf.store.result_typed(ses, 'velocity', velocity)
+    varrs = velores.array_data_by_type()
+    velo = varrs['gvector']
+    vgrid = varrs['mgrid']
 
-    weightres= larf.store.result_typed(ses, 'raster', weighting)
-    warr = weightres.array_data_by_type()
-    wfield = warr['gvector']
-    mgrid = warr['mgrid']
+    curres= larf.store.result_typed(ses, 'raster', current)
+    carr = curres.array_data_by_type()
+    cfield = carr['gscalar']
+    cgrid = carr['mgrid']
     
+    if velo[0].shape != cfield.shape:
+        click.error("Velocity and current fields have incompatible shapes.")
+        return 1
+    if not numpy.all(vgrid == cgrid):
+        click.error("Velocity and current fields have incompatible grids.")
+        return 1
+
     # fixme: allow multiple
     methname, params = tocall[0]
     meth = larf.util.get_method(methname)
     par = ctx.obj['params']
     params.update(par)
 
-    charge = params.pop('charge',1.0)
-    wfield = charge*wfield
-
-    arr = meth(steps, wfield, mgrid, **params)
-    res = Result(name=name, type='current', parents=[stepres, weightres],
+    pts, waveforms = meth(velo, cfield, vgrid, **params)
+    res = Result(name=name, type='waveforms', parents=[velores, curres],
                  params=dict(method=methname, params=params),
-                 arrays=[Array(name='signal', type='waveforms', data=arr)])
+                 arrays=[
+                     Array(name='points', type='path', data=pts),
+                     Array(name='current', type='waveforms', data=waveforms)])
     ses.add(res)
     ses.flush()
     resid = res.id
     ses.commit()
-    announce_result('current', res)
+    announce_result('waveforms', res)
 
     return
 
