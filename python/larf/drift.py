@@ -166,6 +166,7 @@ def test_velocity():
 
 
 
+# fixme: this file should not "know" about Results.
 def result_to_velocity(result, temperature=89*units.Kelvin, **kwds):
     '''
     Return an N-field matrix calculated assuming result holds a potential.

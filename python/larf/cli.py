@@ -614,9 +614,12 @@ def cmd_velocity(ctx, method, raster, name):
               help='The input velocity result.')
 @click.option('-w', '--weight', default = None,
               help='The input weighting result.')
+@click.option('-q', '--charge', default = 1.0,
+              help='Charge in number of electrons.')
+
 @click.argument('name')
 @click.pass_context
-def cmd_current(ctx, velocity, weight, name):
+def cmd_current(ctx, velocity, weight, charge, name):
     '''
     Produce scalar field of instantaneous current at each point 
     '''
@@ -631,8 +634,8 @@ def cmd_current(ctx, velocity, weight, name):
 
     wres= larf.store.result_typed(ses, 'raster', weight)
     warr = wres.array_data_by_type()
-    w = varr['gvector']
-    wgrid = varr['mgrid']
+    w = warr['gvector']
+    wgrid = warr['mgrid']
 
     if v.shape != w.shape:
         click.error("Velocity and weight fields have incompatible shapes.")
@@ -641,7 +644,9 @@ def cmd_current(ctx, velocity, weight, name):
         click.error("Velocity and weight fields have incompatible grids.")
         return 1
 
+
     cur = v[0]*w[0] + v[1]*w[1] + v[2]*w[2]
+    cur *= charge * 1.60217662e-19 # now, amps
 
     res = Result(name=name, type='raster', parents=[vres, wres],
                  params=dict(),
@@ -652,7 +657,7 @@ def cmd_current(ctx, velocity, weight, name):
     ses.add(res)
     ses.flush()
     ses.commit()
-    announce_result('velocity', res)
+    announce_result('current', res)
     return
 
 @cli.command("step")
