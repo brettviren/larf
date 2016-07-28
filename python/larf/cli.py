@@ -11,6 +11,7 @@ import numpy
 
 import larf.store
 from larf import units
+from larf.store import get_matching_results, get_derived_results
 
 @click.group()
 @click.option('-c', '--config', default='larf.cfg', help = 'Set configuration file.')
@@ -38,7 +39,6 @@ def cli(ctx, config, store, param):
 
     #click.echo ("using larf store %s" % store)
     return
-
 
 
 # http://www.bempp.org/grid.html
@@ -120,6 +120,79 @@ def cmd_config(ctx):
         print '\t%s: %s' % (sec, ', '.join(sorted(secs[sec])))
     
 
+@cli.command("corrupt")
+@click.option("-r","--result-id", type=int, multiple=True,
+              help="Focus on one result ID")
+@click.option("-n","--name", type=str, multiple=True,
+              help="Show results for matching name")
+@click.option("-t","--type", type=str, multiple=True,
+              help="Show results for matching type")
+@click.option("--remove-derived", is_flag=True, default=False,
+              help="Remove any derived results.")
+@click.option("--keep-arrays", is_flag=True, default=False,
+              help="Remove any derived results.")
+@click.pass_context
+def cmd_rm(ctx, result_id, name, type, remove_derived, keep_arrays):
+    '''
+    Remove results from the store.  Use at own risk.  It won't really
+    corrupt the DB but it's likely not what you want to do.  Removing
+    a result will make the DB file smaller.  The result ID will not be
+    reused so you can not simply replace a removed result by rerunning.
+    '''
+    ses = ctx.obj['session']
+    results = get_matching_results(ses, result_id, name, type)
+    if remove_derived:
+        results = get_derived_results(results)
+    if not results:
+        click.echo("no matching results")
+    for r in results:
+        click.echo("remove result %d %s %s" % (r.id,r.name,r.type))
+        if not keep_arrays:
+            for a in r.arrays:
+                click.echo("        array %d %s %s %s" % (a.id, a.name, a.type, str(a.data.shape)))
+                ses.delete(a)
+        ses.delete(r)
+    ses.flush()
+    ses.commit()
+    ses.execute("VACUUM")       # sqlite specific, actually make DB file smaller
+    ses.commit()
+
+@cli.command("mv")
+@click.option("-r","--result-id", type=int, 
+              help="Result ID to rename")
+@click.argument("name")
+@click.pass_context
+def cmd_mv(ctx, result_id, name):
+    '''
+    Rename result in the store.
+    '''
+    ses = ctx.obj['session']
+    results = get_matching_results(ses, [result_id])
+    if not results:
+        click.echo("no matching results")
+    for r in results:
+        click.echo ("rename %d %s %s to %s" % (r.id,r.name,r.type, name))
+        r.name = name
+        ses.add(r)
+    ses.commit()
+
+
+@click.pass_context
+def cmd_rm(ctx, result_id, name, type, remove_derived):
+    '''
+    Remove results from the store.
+    '''
+    ses = ctx.obj['session']
+    results = get_matching_results(ses, result_id, name, type)
+    if remove_derived:
+        results = get_derived_results(results)
+    if not results:
+        click.echo("no matching results")
+    for r in results:
+        click.echo ("remove %d %s %s" % (r.id,r.name,r.type))
+        ses.delete(r)
+    ses.commit()
+
 @cli.command("list")
 @click.option("-a","--arrays", is_flag=True, default=False,
               help="Display array info")
@@ -146,14 +219,7 @@ def cmd_list(ctx, arrays, params, result_id, name, type, result_format, array_fo
     import pprint
 
     ses = ctx.obj['session']
-    res = ses.query(Result)
-    if result_id:
-        res = res.filter(Result.id.in_(result_id))
-    if name:
-        res = res.filter(Result.name.in_(name))
-    if type:
-        res = res.filter(Result.type.in_(type))
-    results = res.all()
+    results = get_matching_results(ses, result_id, name, type)
 
     if result_format is None:
         result_format="{id:<4} {parent_ids:<10} {type:<12}{name:<12}\t{created}"
@@ -509,10 +575,11 @@ def cmd_velocity(ctx, method, raster, name):
     '''
     Calculation a velocity vector field.
     '''
-    from larf.models import Result
+    from larf.models import Result, Array
+    from larf.util import mgrid_to_linspace
 
-    if method == 'drift':
-        methname = 'larf.drift.result_to_velocity'
+    if method == 'drift':       # pretend like I actually give an option!
+        methname = 'larf.drift.velocity'
     else:
         click.echo('Unknown velocity calculation method: "%s"' % method)
         return 1
@@ -520,21 +587,73 @@ def cmd_velocity(ctx, method, raster, name):
     ses = ctx.obj['session']
     import larf.store
     potres = larf.store.result_typed(ses, 'raster', raster)
+    arrs = potres.array_data_by_type()
+    potential = arrs['gscalar']
+    mgrid = arrs['mgrid']
+    linspaces = mgrid_to_linspace(mgrid, expand = False)
+
 
     import larf.util
     meth = larf.util.get_method(methname)
     par = ctx.obj['params']
-    arrays = meth(potres, **par)
+    velo = meth(potential, linspaces, **par)
 
     res = Result(name=name, type='velocity', parents=[potres],
                  params=dict(method=methname, params=par),
-                 arrays=arrays)
+                 arrays = [
+                     Array(name='domain', type='mgrid', data=mgrid),
+                     Array(name='velocity', type='gvector', data = numpy.asarray(velo))])
     ses.add(res)
     ses.flush()
     resid = res.id
     ses.commit()
-    #click.echo('produced velocity result: %d' % resid)
     announce_result('velocity', res)
+
+@cli.command("current")
+@click.option('-v', '--velocity', default = None,
+              help='The input velocity result.')
+@click.option('-w', '--weight', default = None,
+              help='The input weighting result.')
+@click.argument('name')
+@click.pass_context
+def cmd_current(ctx, velocity, weight, name):
+    '''
+    Produce scalar field of instantaneous current at each point 
+    '''
+    from larf.models import Result, Array
+
+    ses = ctx.obj['session']
+
+    vres= larf.store.result_typed(ses, 'velocity', velocity)
+    varr = vres.array_data_by_type()
+    v = varr['gvector']
+    vgrid = varr['mgrid']
+
+    wres= larf.store.result_typed(ses, 'raster', weight)
+    warr = wres.array_data_by_type()
+    w = varr['gvector']
+    wgrid = varr['mgrid']
+
+    if v.shape != w.shape:
+        click.error("Velocity and weight fields have incompatible shapes.")
+        return 1
+    if not numpy.all(vgrid == wgrid):
+        click.error("Velocity and weight fields have incompatible grids.")
+        return 1
+
+    cur = v[0]*w[0] + v[1]*w[1] + v[2]*w[2]
+
+    res = Result(name=name, type='raster', parents=[vres, wres],
+                 params=dict(),
+                 arrays=[
+                     Array(name='domain', type='mgrid', data=vgrid),
+                     Array(name="current", type="gscalar", data=cur),
+                 ])
+    ses.add(res)
+    ses.flush()
+    ses.commit()
+    announce_result('velocity', res)
+    return
 
 @cli.command("step")
 @click.option('-s', '--step', 
@@ -582,7 +701,7 @@ def cmd_step(ctx, step, velocity, name):
     announce_result('steps', res)
     return
 
-@cli.command("current")
+@cli.command("waveforms")
 @click.option('-c', '--current', 
               help='The "[current]" configuration file section.')
 @click.option('-s', '--steps',
@@ -591,7 +710,7 @@ def cmd_step(ctx, step, velocity, name):
               help='The input weighting field')
 @click.argument('name')
 @click.pass_context
-def cmd_current(ctx, current, steps, weighting, name):
+def cmd_waveforms(ctx, current, steps, weighting, name):
     '''
     Convert steps to electrode current as a function of time
     '''

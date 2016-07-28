@@ -51,9 +51,9 @@ result_types = [
     'mesh',
     'boundary',
     'raster',
-    'velocity',
+    'velocity',                 # fixme: just make raster?
     'stepping',
-    'current',
+    'current',                  # fixme: rename waveform
 ]
 
 result_provenance = Table(

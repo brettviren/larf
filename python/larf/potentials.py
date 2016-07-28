@@ -88,14 +88,21 @@ class gradient(object):
         self.nset = 0
         self.counts = defaultdict(int)
         self.unknown = defaultdict(int)
+        self.oob = defaultdict(int)
     def __call__(self, pos, normal, index, result):
         self.ntot += 1
-        field = self.dfm.get(index, None)
-        if field is None:
+        delta = self.dfm.get(index, None)
+        if delta is None:
             self.unknown[index] += 1
             print 'Unknown domain for gradient: %d' % index
             return
-        potential = field * pos[0]
+        rangex,rangef = delta
+        if pos[0] < rangex[0] or pos[0] > rangex[1]:
+            self.oob[index] += 1
+            print 'Out of bounds for domain %d, %f not in (%f,%f)' % (index, pos[0], rangex[0], rangex[1])
+            return
+
+        potential = larf.util.interpolate2(pos[0], rangex, rangef)
         result[0] = potential
         self.nset += 1
         self.counts[index] += 1

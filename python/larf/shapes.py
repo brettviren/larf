@@ -111,7 +111,6 @@ lcar = {lcar};
 
     geostr += 'Mesh.Algorithm = 6;\n'
 
-    print geostr
     return geostr
 
 def straw(length=10.0*mm, radius=1.0*mm, lcar=1.0*mm, nsegments=6, extrurotang=0.0, **kwds):

@@ -74,6 +74,11 @@ def expand_tuple_list(d):
             ret[ind] = v
     return ret
 
+def interpolate2(x, rangex, rangey):
+    dx = rangex[1]-rangex[0]
+    dy = rangey[1]-rangey[0]
+    return rangey[0] + (x-rangex[0])/dx*dy
+
 def mgrid_to_linspace(mg, expand = True):
     '''
     Return the linspaces which produced the given meshgrid.

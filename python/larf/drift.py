@@ -22,7 +22,7 @@ def mobility_function(Emag, Temperature = 89*units.Kelvin):
 
     # put into explicit units to match formula
     Emag = Emag/(units.kV/units.cm) 
-    Trel = Temperature / 89*units.Kelvin
+    Trel = Temperature / (89*units.Kelvin)
 
     #print 'Emag:', Emag
 
@@ -174,13 +174,24 @@ def result_to_velocity(result, temperature=89*units.Kelvin, **kwds):
     field = arrs['gvector'] # N-D array of scalar potential values
     mgrid = arrs['mgrid']   # forward to output
 
-    mag = numpy.sqrt(numpy.add(*[e**2 for e in field]))
+    mag = numpy.sqrt(field[0]**2 + field[1]**2 + field[2]**2)
     mu = mobility(mag, temperature)
     velo = mu*field
 
     from larf.models import Array
     return [Array(name='domain', type='mgrid', data=mgrid),
             Array(name='velocity', type='gvector', data = numpy.asarray(velo))]
+
+
+def velocity(potential, linspaces, temperature=89*units.Kelvin, **kwds):
+    '''
+    Return an N-field matrix calculated assuming result holds a potential.
+    '''
+    dxyz = [(ls[1]-ls[0])/(ls[2]-1) for ls in linspaces]
+    E = numpy.asarray(numpy.gradient(potential, *dxyz))
+    Emag = numpy.sqrt(E[0]**2 + E[1]**2 + E[2]**2)
+    mu = mobility(Emag, temperature)
+    return mu*E
 
 
 def induced_current(Eweight, Edrift, mu, charge=1.0):

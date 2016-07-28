@@ -1,5 +1,10 @@
 #+TITLE: LArTPC Field Calculation Using BEM
 
+Three slices the individual Shockley-Ramo weighting potential for a U, a V and a W wire, placed together.
+
+[[./uvw-weighting-fields.png]]
+
+
 * Overview
 
 *Note: this package is still a work in progress!*

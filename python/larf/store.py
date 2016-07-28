@@ -56,6 +56,30 @@ def result_typed(ses, type, ident=None):
     return r.filter_by(name=ident).order_by(desc(larf.models.Result.created)).first()
 
 
+def get_matching_results(ses, ids=(), names=(), types=()):
+    '''
+    Return collection of results that match any in collection of ids
+    AND names AND types, if given.
+    '''
+    res = ses.query(larf.models.Result)
+    if ids:
+        res = res.filter(larf.models.Result.id.in_(ids))
+    if names:
+        res = res.filter(larf.models.Result.name.in_(names))
+    if types:
+        res = res.filter(larf.models.Result.type.in_(types))
+    return res.all()
+
+
+def get_derived_results(seeds):
+    '''
+    Return a collection with given seed results and all derived results.
+    '''
+    ret = set()
+    for s in seeds:
+        ret.add(s)
+        ret.update(get_derived_results(s.children))
+    return ret
 
 
 def _result(ses, resid=None, type=None, name=None, **kwds):
