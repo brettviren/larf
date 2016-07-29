@@ -63,19 +63,23 @@ def patch(vfield, cfield, mgrid,
             for step in steps:
                 fill(*step)
 
-        for ind in range(len(count)):
-            n = count[ind]
-            if n == 0:
-                continue
-            waveform[ind] /= n
-            ptt[ind] /= n
-            ptx[ind] /= n
-            pty[ind] /= n
-            ptz[ind] /= n
 
-        pts = numpy.vstack((ptt, ptx, pty, ptz)).T
-        step_points.append(pts)
-        waveforms.append(waveform)
-    return (numpy.vstack(step_points), numpy.vstack(waveforms))
+            for ind in range(len(count)):
+                n = count[ind]
+                if n == 0:
+                    continue
+                waveform[ind] /= n
+                ptt[ind] /= n
+                ptx[ind] /= n
+                pty[ind] /= n
+                ptz[ind] /= n
+
+            pts = numpy.vstack((ptt, ptx, pty, ptz)).T
+            step_points.append(pts)
+            waveforms.append(waveform)
+
+            continue            # z
+        continue                # y
+    return (numpy.asarray(step_points), numpy.vstack(waveforms))
 
 

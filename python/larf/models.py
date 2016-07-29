@@ -108,9 +108,9 @@ array_types = [
     'mgrid',     # a numpy.meshgrid in 'ij' indexing (Ndim, n1, ..., n_Ndim)
     'gscalar',   # scalar values defined on an associated mgrid (n1, ..., n_Ndim)
     'gvector',   # components of vector values defined on associated mgrid (Ndim, n1, ..., n_Ndim)
-    'path',      # N-ordered points (t,x,y,z) in 4-space (N_path, 4)
-    'pscalar',   # scalar value defined at points on path (N_path,)
-    'ptuple',    # tuple of n values defined at points on path (N_path, n)
+    'path',      # N_path of N_step ordered points (t,x,y,z) in 4-space (N_path, N_step, 4)
+    'pscalar',   # scalar value defined at points on path (N_path, N_step)
+    'ptuple',    # tuple of n values defined at points on paths (N_path, N_step, n)
     'steps',     # (N_path, N_steps+1, 4) arrays holding 4-points (x,y,z,t) along step paths.
     'waveforms', # (N_waveforms, N_ticks) arrays holding digitized quantity (current)
 ]

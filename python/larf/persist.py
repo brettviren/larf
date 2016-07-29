@@ -108,7 +108,41 @@ def save_boundary_vtk(result, outfile, **kwds):
     write_data(pd, outfile)
     return
 
+def save_waveforms_vtk(result, outfile, **kwds):
+    '''
+    Save a waveforms result to a VTK file.
+    '''
+    from tvtk.api import tvtk, write_data
+
+    arrs = result.array_data_by_type()
+    paths = arrs['path']
+    pscalar = arrs['pscalar']
     
+    # flatten
+    points = list()
+    pathids = list()
+    times = list()
+    scalars = list()
+    npaths, nsteps, four = paths.shape
+    for ipath in range(npaths):
+        for istep in range(nsteps):
+            points.append(paths[ipath][istep][1:])
+            pathids.append(ipath)
+            times.append(paths[ipath][istep][0])
+            scalars.append(pscalar[ipath][istep])
+
+    ug = tvtk.UnstructuredGrid()
+    ug.points = points
+    ug.point_data.scalars = scalars
+    ug.point_data.scalars.name = 'current' # fixme: should get from result
+    ug.point_data.add_array(times)
+    ug.point_data.get_array(1).name = 'time'
+    ug.point_data.add_array(pathids)
+    ug.point_data.get_array(2).name = 'pathid'
+
+    write_data(ug, outfile)
+    return
+
 
 def save_result_npz(result, outfile, compression=True, **kwds):
     '''

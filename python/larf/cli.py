@@ -614,7 +614,7 @@ def cmd_velocity(ctx, method, raster, name):
               help='The input velocity result.')
 @click.option('-w', '--weight', default = None,
               help='The input weighting result.')
-@click.option('-q', '--charge', default = 1.0,
+@click.option('-q', '--charge', default = -1.0,
               help='Charge in number of electrons.')
 
 @click.argument('name')
@@ -644,7 +644,8 @@ def cmd_current(ctx, velocity, weight, charge, name):
         click.error("Velocity and weight fields have incompatible grids.")
         return 1
 
-
+    if charge > 0:
+        charge *= -1
     cur = v[0]*w[0] + v[1]*w[1] + v[2]*w[2]
     cur *= charge * 1.60217662e-19 # now, amps
 
@@ -759,7 +760,7 @@ def cmd_waveforms(ctx, waveform, velocity, current, name):
                  params=dict(method=methname, params=params),
                  arrays=[
                      Array(name='points', type='path', data=pts),
-                     Array(name='current', type='waveforms', data=waveforms)])
+                     Array(name='current', type='pscalar', data=waveforms)])
     ses.add(res)
     ses.flush()
     resid = res.id
