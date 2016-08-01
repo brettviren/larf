@@ -47,7 +47,7 @@
     detail, on the instantaneous values of the:
     \begin{itemize}\footnotesize
     \item \textbf{charge velocity} (vector), ie, drift velocity.
-    \item \textbf{charge location} relative to the wire as well
+    \item \textbf{charge location} relative to the \textbf{wire of interest} as well
       as \textbf{every other electrode} in the vicinity.
     \end{itemize}
   \item In reality, we measure an \textbf{ensemble of superimposed
@@ -58,9 +58,9 @@
   \end{itemize}
   
   \footnotesize
-  $\rightarrow$ the more the \textbf{average response function}
-  matches the the \textbf{true, instantaneous response function} the better
-  the LArTPC image.
+  $\rightarrow$ the more the average response function
+  matches the the true, instantaneous response function the better
+  the deconvolved LArTPC image.
 
 \end{frame}
 
@@ -71,12 +71,14 @@
   Current in $k^{th}$ wire due to charge $q$ at position $\vec{r}(t)$ at time $t$: \\
   \begin{center}
     $i_k(\vec{r}(t)) = q \times (\vec{E}_{weight,k} \cdot \vec{v})$      
+
+    $\vec{v} = \mu \vec{E}_{drift}(\vec{r}(t))$ 
   \end{center}
 
   \begin{description}
   \item[Drift field] $\vec{E}_{drift}$ from applied high voltage
   \item[Weight field] $\vec{E}_{weight,k}$ constructed \textit{Shockley-Ramo} field.
-  \item[Drift Velocity] $\vec{v}(t) = \mu \vec{E}_{drift}(\vec{r}(t))$ determines drift path.
+  \item[Drift Velocity] $\vec{v}(t)$ determines (mean) drift path of an electron.
   \item[Mobility] $\mu = \mu(E_{drift})$ of the drifting charge in LAr.
   \end{description}
 
@@ -105,15 +107,20 @@
 \end{frame}
 
 \begin{frame}
-  \frametitle{The Boundary Element Method}
+  \frametitle{The Boundary Element Method (BEM)}
 
   \begin{enumerate}
-  \item Discretize electrode geometry surface boundary with a triangular mesh.
-  \item Define potential boundary conditions on each mesh element.
+  \item Discretize electrode surfaces with a triangular mesh.
+  \item Define potential boundary conditions on mesh elements.
   \item Integrate Laplace equation $\nabla^2\phi=0$.
   \item Fit integral equation to boundary values.
   \item Evaluate at points in the volume to get $\phi(\vec{r})$.
   \end{enumerate}
+
+  A lot of math and code: rely on \href{http://gmsh.info/}{GMSH} for
+  meshing (1-2) and \href{http://www.bempp.org/}{BEM++} for
+  solving/evaluating (3-5).
+
 \end{frame}
 
 \begin{frame}
@@ -127,6 +134,7 @@
       \item Performance relies on relatively new math discoveries.
       \item Relatively few software implementations.
       \end{itemize}      
+      \textbf{This work.}
     \end{column}
     \begin{column}{0.5\textwidth}
       FEM
@@ -136,11 +144,12 @@
       \item Adaptive meshes can improve performance.
       \item Many implementations, heavily used in industry.
       \end{itemize}      
+      \textbf{Past 2D and new 3D $\rightarrow$}
     \end{column}
   \end{columns}
 \end{frame}
 \begin{frame}
-  \frametitle{Leon Rochester's FEM Work}
+  \frametitle{Plug for Leon Rochester's FEM Work}
   \begin{columns}
     \begin{column}{0.5\textwidth}
       \begin{center}
@@ -161,7 +170,6 @@
   $\rightarrow$ Potential BEM/FEM hybrid to get the best of both.
 \end{frame}
 
-
 \section{Geometry}
 
 \begin{frame}{Wires Meshes}
@@ -180,14 +188,14 @@
       \begin{center}
         \includegraphics[height=0.4\textheight]{uboone-mesh.png}      
 
-        ``\microboone'':\\3mm pitch and gap\\$60^\circ$ angles for U/V.
+        ``\microboone''-like:\\3mm pitch and gap\\$60^\circ$ angles for U/V.
       \end{center}
     \end{column}
     \begin{column}{0.3\textwidth}
       \begin{center}
         \includegraphics[height=0.4\textheight]{dune-mesh.png}      
 
-        ``DUNE'':\\5mm pitch and gap\\$35.7^\circ$ angles for U/V.
+        ``DUNE''-like:\\5mm pitch and gap\\$35.7^\circ$ angles for U/V.
       \end{center}
     \end{column}
   \end{columns}
@@ -266,7 +274,7 @@
 \end{frame}
 
 
-\subsection{MicroBooNE Geometry}
+\subsection{MicroBooNE-like}
 
 \begin{frame}
   \frametitle{Wire Geometry with Cathode Plane}
@@ -369,7 +377,7 @@
   \item Handles pretty much everything with a simple \textbf{command line interface} and \textbf{configuration file}.
   \item Standard Python installation.
     \begin{itemize}
-    \item Heavy lifting: \href{http://www.bempp.org/}{BEM++} and Numpy
+    \item Heavy lifting: \href{http://www.bempp.org/}{BEM++}, \href{http://gmsh.info/}{GMSH} and Numpy.
     \end{itemize}
   \item Results stored in Sqlite3 database with result provenance.
   \item Multiple, common data export methods (\texttt{.npz}, \texttt{.vtk})
