@@ -139,23 +139,26 @@
     \end{column}
   \end{columns}
 \end{frame}
-
-
 \begin{frame}
-  \frametitle{Stepping}
-  Evolution of position $\vec{r}_k \equiv \vec{r}(t_k)$ from step $k$ to $k+1$:
-  \begin{center}
-    $\vec{r}_k \rightarrow \vec{r}_{k+1} = \vec{r}_k + \vec{v}(\vec{r}_k) \times \Delta t_k$
-  \end{center}
-  Use \textbf{Adaptive Runge-Kutta + Cash/Karp} ($\sim 5^{th}$ order)
-  \begin{itemize}
-  \item From Numerical Recipes
-  \item Take two different 6th order steps.
-  \item Distance between each estimates error.
-  \item Adjust $\Delta t_{k+1}$ based on error
-  \item Hugely more efficient than simple RK4
-  \item Must still watch for stepping to get stuck at maximum.
+  \frametitle{Leon Rochester's FEM Work}
+  \begin{columns}
+    \begin{column}{0.5\textwidth}
+      \begin{center}
+        \includegraphics[width=\textwidth]{leon-drifts.png}
+      \end{center}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \begin{center}
+        \includegraphics[width=\textwidth]{leon-weighting.png}        
+      \end{center}
+    \end{column}
+  \end{columns}
+  \begin{itemize}\footnotesize
+  \item Contemporaneous and collaborative work with Leon Rochester @ SLAC.
+  \item Custom C++/ROOT FEM code inspired by ICARUS' FORTRAN codes.
+  \item Realizes the benefit of the FEM approach (eg, near-surface precision).
   \end{itemize}
+  $\rightarrow$ Potential BEM/FEM hybrid to get the best of both.
 \end{frame}
 
 
@@ -194,7 +197,7 @@
   Wire generation is parameterized so easy to explore different wire patterns.
 \end{frame}
 
-\section{Parallel Wires}
+\subsection{Parallel Wires / fake-2D}
 
 
 \begin{frame}
@@ -263,7 +266,7 @@
 \end{frame}
 
 
-\section{MicroBooNE Geometry}
+\subsection{MicroBooNE Geometry}
 
 \begin{frame}
   \frametitle{Wire Geometry with Cathode Plane}
@@ -299,23 +302,7 @@
   \end{center}
 \end{frame}
 
-\begin{frame}
-  \frametitle{Induced Current (Krabby) Field for U Wire}
-  \begin{columns}
-    \begin{column}{0.8\textwidth}
-      \includegraphics[width=0.9\textwidth]{demon-current.png}      
-    \end{column}
-    \begin{column}{0.2\textwidth}
-      \includegraphics[height=2cm]{098Krabby.png}          
-    \end{column}
-  \end{columns}
-
-  \begin{center}
-  \footnotesize
-  U-wire at center, drift goes upward, Y-Z slice, 0.5 mm voxels, current in Amps.
-    
-  \end{center}
-\end{frame}
+\section{Initial Response Function Results}
 
 \begin{frame}
   \frametitle{Initial Response Function Results}
@@ -347,16 +334,20 @@
   \frametitle{Next steps}
 
   \begin{itemize}
-  \item More validation with 2D and contemporaneous \\
-    3D FEM work by \textbf{Leon Rochester}.
-  \item Expect to need to go to +/- 10 neighbor wires for good 2D deconvolution.
+  \item More validation with 2D and Leon's 3D FEM work.
+  \item Initial results \textbf{unfortunately} very similar to 2D!
     \begin{itemize}
-    \item Increases computation $\sim$ linearly with number of wires
+    \item Just 2D$\to$3D not sufficient!?
+    \item Go to +/- 10 neighbor wires for good 2D-deconvolution.
+    \item Computation increases $\sim$ linearly with number of wires 
+      \begin{itemize}
+      \item[$\rightarrow$] (for BEM, FEM is $N^2$!).
+      \end{itemize}
     \end{itemize}
   \item Implement \textbf{protoDUNE/SP and DUNE FD} geometries!
     \begin{itemize}
-    \item Much harder do to non-uniform wire crossing pattern, \\
-      will need $\sim$30 of unique $\vec{E}_{weight,k}$ instead of 3.
+    \item Many more weighting fields needed due to non-uniform wire crossing pattern
+    \item Need $\sim$30 unique $\vec{E}_{weight,k}$ instead of 3.
     \item Can look at ``edge effects'' such as at APA boundaries.
     \end{itemize}
   \end{itemize}
@@ -395,5 +386,49 @@
 
   \scriptsize Warning: docs need a refresh, contact me before reading so I can clean up.
 \end{frame}
+
+\section{}
+
+\begin{frame}
+  \begin{center}
+      \Huge extras
+  \end{center}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Stepping}
+  Evolution of position $\vec{r}_k \equiv \vec{r}(t_k)$ from step $k$ to $k+1$:
+  \begin{center}
+    $\vec{r}_k \rightarrow \vec{r}_{k+1} = \vec{r}_k + \vec{v}(\vec{r}_k) \times \Delta t_k$
+  \end{center}
+  Use \textbf{Adaptive Runge-Kutta + Cash/Karp} ($\sim 5^{th}$ order)
+  \begin{itemize}
+  \item From Numerical Recipes
+  \item Take two different 6th order steps.
+  \item Distance between each estimates error.
+  \item Adjust $\Delta t_{k+1}$ based on error
+  \item Hugely more efficient than simple RK4
+  \item Must still watch for stepping to get stuck at maximum.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Induced Current (Krabby) Field for U Wire}
+  \begin{columns}
+    \begin{column}{0.8\textwidth}
+      \includegraphics[width=0.9\textwidth]{demon-current.png}      
+    \end{column}
+    \begin{column}{0.2\textwidth}
+      \includegraphics[height=2cm]{098Krabby.png}          
+    \end{column}
+  \end{columns}
+
+  \begin{center}
+  \footnotesize
+  U-wire at center, drift goes upward, Y-Z slice, 0.5 mm voxels, current in Amps.
+    
+  \end{center}
+\end{frame}
+
 
 \end{document}
