@@ -157,7 +157,7 @@ class StuckDetection(object):
         self.nstuck += 1
         if self.nstuck <= self.nallowed:
             return False
-        print 'stuck at %f,%s -> %f,%s' % (t1,r1,t2,r2)
+        #print 'stuck at %f,%s -> %f,%s' % (t1,r1,t2,r2)
         return True
 
 class CollectSteps(object):

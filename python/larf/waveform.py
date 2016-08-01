@@ -37,7 +37,7 @@ def patch(vfield, cfield, mgrid,
         for z in numpy.arange(-cz, cz, sepz):
 
             position = (x,y,z)
-            print position
+            #print position
             visitor = stepper(start_time, position, CollectSteps(StuckDetection(distance=stuck)))
             steps = larf.current.sample(visitor.array, cfield, mgrid, lcar)
 

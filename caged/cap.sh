@@ -134,12 +134,19 @@ drift_velo_fine=$ident
 # instantaneous current
 
 doifneeded ucurrent			current -v $drift_velo -w $field_uweight_wires 
+ucurrent=$ident
 doifneeded vcurrent			current -v $drift_velo -w $field_vweight_wires 
+vcurrent=$ident
 doifneeded wcurrent			current -v $drift_velo -w $field_wweight_wires 
+wcurrent=$ident
 
 doifneeded ucurrent-fine		current -v $drift_velo_fine -w $field_uweight_wires_fine
 doifneeded vcurrent-fine		current -v $drift_velo_fine -w $field_vweight_wires_fine 
-doifneeded wcurrent-find		current -v $drift_velo_fine -w $field_wweight_wires_fine
+doifneeded wcurrent-fine		current -v $drift_velo_fine -w $field_wweight_wires_fine
+
+doifneeded uwaveform			waveforms -w patch -v $drift_velo -c $ucurrent
+doifneeded vwaveform			waveforms -w patch -v $drift_velo -c $vcurrent
+doifneeded wwaveform			waveforms -w patch -v $drift_velo -c $wcurrent
 
 exit 0
 

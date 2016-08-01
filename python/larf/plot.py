@@ -180,3 +180,5 @@ def field(potential, outfile=None, title="BEM Calculation (field)", cmap="spectr
 def load(filename):
     "Load an NPZ file returning a dictionary of its arrays."
     return {k:v for k,v in np.load(filename).items()}
+
+
