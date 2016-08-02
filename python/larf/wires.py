@@ -4,8 +4,74 @@ from larf.units import cm, mm, um, deg
 from larf.util import unitify, vec_direction, ray_length, ray_center, ray_direction, in_bounds, box_intersection
 from larf.shapes import cylinder
 from larf.mesh import Object as MeshObject
+from larf.vector import mag, dot
 
+from collections import namedtuple
 
+class WireGeo(object):
+    def __init__(self, ray, rad, domain=0):
+        self.ray = (np.asarray(ray[0]), np.asarray(ray[1]))
+        self.rad = rad
+        self.domain = domain
+        self.direction = ray_direction(self.ray)
+        self.length = ray_length(self.ray)
+        self.center = ray_center(self.ray)
+        self.aperpendicular = np.cross(self.direction, (1.0, 0.0, 0.0))
+
+    def inbbox(self, point):
+        for p,r1,r2 in zip(point, self.ray[0], self.ray[1]):
+            if r1 > r2: r2,r1 = r1,r2
+            if p < r1-self.rad: return False
+            if p > r2+self.rad: return False
+        return True
+
+    def perpdist(self, point):
+        point = np.asarray(point)
+        topt = point - self.ray[0]
+        shadow = dot(topt, self.direction)
+        if shadow < 0 or shadow > self.length:
+            return None
+        toshad = self.ray[0] + shadow*self.direction
+        perp = topt - toshad
+        dist = mag(perp)
+        return dist
+
+    def __str__(self):
+        t = self.ray[0]/mm
+        h = self.ray[1]/mm
+        return "<WireGeo dom:%d rad:%.1fmm ray:(%.1f %.1f %.1f)->(%.1f %.1f %.1f)>" % \
+            (self.domain, self.rad/mm, t[0],t[1],t[2], h[0],h[1],h[2])
+
+    def __lt__(self, other):
+        if self.domain == other.domain:
+            if self.ray[0][0] == other.ray[0][0]:
+                return self.ray[0][1] == other.ray[0][1]
+            else:
+                return self.ray[0][0] < other.ray[0][0]
+            pass
+
+        return self.domain < other.domain
+
+class WireGeoPlanes(object):
+    def __init__(self):
+        self._wires = list()
+        self.xvals = set()
+
+    def add(self, wiregeo):
+        self.xvals.add(wiregeo.ray[0][0])
+
+    def inwire(self, point):
+        return True             # fixme: implement
+        
+def wiregeos_from_array(arr):
+    ret = list()
+    for dom,rad, x1,y1,z1, x2,y2,z2 in arr:
+        ret.append(WireGeo(((x1,y1,z1), (x2,y2,z2)), rad, dom))
+    return ret;
+    
+            
+            
+        
 
 def prototype(length=10*cm, radius=150*um, angle=0*deg, axis=None, lcar=None, domain=0, **kwds):
     "Return a larf.mesh.Object for a prototype wire along Z direction centered at 0,0,0"
@@ -214,12 +280,14 @@ def bboxray(bounds, upitch, vpitch, wpitch, radius=150*um, lcar=1*cm, domains=(1
             ang = -math.acos(np.dot(rdir, (0.0, 0.0, 1.0)))
 
             wire = cylinder(rlen, radius, lcar=lcar, **kwds)
-            mo = MeshObject(domain=start_domain+count)
+            domain = start_domain+count
+            mo = MeshObject(domain=domain)
             mo.gen(wire)
 
             mo.translate((0,0,-0.5*rlen))
             mo.rotate(ang)
             mo.translate(rcen)
+            mo.geometry_data = np.hstack(((domain, radius), ray[0], ray[1]))
 
             ret.append(mo)
 

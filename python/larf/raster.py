@@ -20,6 +20,19 @@ from time import time as now
 from larf.bem import spaces
 from larf.models import Array
 
+class Points(object):
+    def __init__(self, grid, dfun, nfun):
+        self.dfun = dfun
+        self.nfun = nfun
+        self.pcspace, self.plspace = spaces(grid)
+
+    def __call__(self, *points):
+        points = np.asarray(points).T
+        slp_pot = bempp.api.operators.potential.laplace.single_layer(self.pcspace, points)
+        dlp_pot = bempp.api.operators.potential.laplace.double_layer(self.plspace, points)
+        return slp_pot*self.nfun-dlp_pot*self.dfun
+        
+
 def linear(grid, dfun, nfun,
            linspaces=[(-1.,1.,10), (-2.,2.,20), (-3.,3.,30)], **kwds):
     '''
@@ -50,6 +63,8 @@ def linear(grid, dfun, nfun,
 #        Array(type='points', name='points', data = points.T),
     ]
     
+
+
 
 def pixels(grid, dirichlet_fun, neumann_fun, 
            ngridx=150, ngridy=150, xrange=(-50,50), yrange=(-50,50),

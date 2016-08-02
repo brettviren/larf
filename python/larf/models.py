@@ -100,6 +100,7 @@ class Result(Base):
         
 
 array_types = [
+    'wiregeo',      # n-tuple of information about wire geometry (domain,radius,*(endpt1),*(endptr2))
     'points',    # N-ordered points (x,y,z) in 3-space (N_points,3)
     'triangles', # triplets of indices into associated points (N_triangles,3)
     'ptscalar',  # boundary potential function coefficients defined on points (eg, dirichlet)
@@ -111,7 +112,7 @@ array_types = [
     'path',      # N_path of N_step ordered points (t,x,y,z) in 4-space (N_path, N_step, 4)
     'pscalar',   # scalar value defined at points on path (N_path, N_step)
     'ptuple',    # tuple of n values defined at points on paths (N_path, N_step, n)
-    'steps',     # (N_path, N_steps+1, 4) arrays holding 4-points (x,y,z,t) along step paths.
+    'steps',     # (N_steps_in_path+1, 5) arrays holding 5-points (x,y,z,t,i) for i in N paths.
     'waveforms', # (N_waveforms, N_ticks) arrays holding digitized quantity (current)
 ]
 class Array(Base):

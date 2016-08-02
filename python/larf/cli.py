@@ -177,21 +177,6 @@ def cmd_mv(ctx, result_id, name):
     ses.commit()
 
 
-@click.pass_context
-def cmd_rm(ctx, result_id, name, type, remove_derived):
-    '''
-    Remove results from the store.
-    '''
-    ses = ctx.obj['session']
-    results = get_matching_results(ses, result_id, name, type)
-    if remove_derived:
-        results = get_derived_results(results)
-    if not results:
-        click.echo("no matching results")
-    for r in results:
-        click.echo ("remove %d %s %s" % (r.id,r.name,r.type))
-        ses.delete(r)
-    ses.commit()
 
 @cli.command("list")
 @click.option("-a","--arrays", is_flag=True, default=False,
@@ -333,6 +318,9 @@ def cmd_import(ctx, filename):
 def announce_result(type, res):
     click.echo('%s result id %d' % (type, res.id))
 
+
+
+
 @cli.command("mesh")
 @click.option('-m','--mesh',
               help='The "[mesh]" configuration file section.')
@@ -362,6 +350,8 @@ def cmd_mesh(ctx, mesh, name):
     calls = list()
     molist = list()
 
+    geometry_data = list()
+
     for methname,params in tocall:
         meth = larf.util.get_method(methname)
         calls.append(dict(method=methname, params=params))
@@ -379,18 +369,24 @@ def cmd_mesh(ctx, mesh, name):
     scene = Scene()
     for mo in molist:
         scene.add(mo)
+        try:
+            geometry_data.append(mo.geometry_data)
+        except AttributeError:
+            pass
+
 
     grid = scene.grid()
     lv = grid.leaf_view
 
-    res = Result(name=name, type='mesh',
-                 params = calls,
-                 arrays = [
-                     Array(type='elscalar', name='domains', data=lv.domain_indices),
-                     Array(type='points', name='points', data=lv.vertices.T),
-                     Array(type='triangles', name='triangles', data=lv.elements.T),
-                     ])
+    arrays = [
+        Array(type='elscalar', name='domains', data=lv.domain_indices),
+        Array(type='points', name='points', data=lv.vertices.T),
+        Array(type='triangles', name='triangles', data=lv.elements.T),
+    ]
+    if geometry_data:
+        arrays.append(Array(type='wiregeo', name='wires', data=numpy.asarray(geometry_data)))
 
+    res = Result(name=name, type='mesh', params = calls, arrays = arrays)
     ses = ctx.obj['session']
     ses.add(res)
     ses.flush()
