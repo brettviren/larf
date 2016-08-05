@@ -27,10 +27,12 @@ class Points(object):
         self.pcspace, self.plspace = spaces(grid)
 
     def __call__(self, *points):
+        npoints = len(points)
         points = np.asarray(points).T
         slp_pot = bempp.api.operators.potential.laplace.single_layer(self.pcspace, points)
         dlp_pot = bempp.api.operators.potential.laplace.double_layer(self.plspace, points)
-        return slp_pot*self.nfun-dlp_pot*self.dfun
+        ret = slp_pot*self.nfun-dlp_pot*self.dfun
+        return ret.reshape((npoints))
         
 
 def linear(grid, dfun, nfun,

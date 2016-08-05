@@ -126,7 +126,10 @@ class BoundPrecision(object):
         @rtype: float
 
         '''
-        rel = self.prec/numpy.max(numpy.abs(error))
+        err = numpy.max(numpy.abs(error))
+        if err == 0.0:
+            return 1.0
+        rel = self.prec/err
         rel = math.pow(rel, 0.2) # adaptive runge-kutta magic
         if self.maxrat is None:
             return rel
@@ -302,7 +305,7 @@ def StepperParams(params, **defaults):
 
 
 class Stepper(object):
-    def __init__(self, velo_fun, step_fun = step_rkck, **kwds):
+    def __init__(self, velo_fun, step_fun = step_rkck, fixed_step=None, **kwds):
         '''
         Create a stepper.
 
@@ -318,6 +321,7 @@ class Stepper(object):
         '''
         self.velo_fun = velo_fun
         self.step_fun = step_rkck
+        self.fixed_step = fixed_step
         self._defaults = kwds
 
     def params(self, **kwds):
@@ -371,7 +375,10 @@ class Stepper(object):
 
             # update for next iteration
             time += dt  
-            dt = dtnext
+            if self.fixed_step:
+                dt = self.fixed_step
+            else:
+                dt = dtnext
             position = pnext
 
         return visitor

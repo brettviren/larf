@@ -35,3 +35,27 @@ def sample(steps, cfield, mgrid, lcar = None, **kwds):
     ret = numpy.asarray(result)
 
     return ret
+
+def differential(weighting, p1, p2):
+    q1 = weighting(p1[:3])
+    q2 = weighting(p2[:3])
+    return (q2-q1)/(p2[3]-p1[3])
+    
+
+def stepwise(weighting, path, charge=1.0):
+    '''
+    Sample weighting potential around each of the 4-points (x,y,z,t)
+    in path returning array of corresponding currents in units of
+    charge/time
+    '''
+    samples = list()
+
+    halvsies = [0.5*(a+b) for a,b in zip(path[:-1], path[1:])]
+    for left, center, right in zip([None]+halvsies, path, halvsies+[None]):
+        cur = list()
+        if left is not None:
+            cur.append(charge * differential(weighting, left, center))
+        if right is not None:
+            cur.append(charge * differential(weighting, center, right))
+        samples.append(sum(cur)/len(cur))
+    return numpy.asarray(samples)

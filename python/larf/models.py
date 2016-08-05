@@ -109,7 +109,7 @@ array_types = [
     'mgrid',     # a numpy.meshgrid in 'ij' indexing (Ndim, n1, ..., n_Ndim)
     'gscalar',   # scalar values defined on an associated mgrid (n1, ..., n_Ndim)
     'gvector',   # components of vector values defined on associated mgrid (Ndim, n1, ..., n_Ndim)
-    'path',      # N_path of N_step ordered points (t,x,y,z) in 4-space (N_path, N_step, 4)
+    'path',      # Ordered 4-space points (x,y,z,t) 
     'pscalar',   # scalar value defined at points on path (N_path, N_step)
     'ptuple',    # tuple of n values defined at points on paths (N_path, N_step, n)
     'steps',     # (N_steps_in_path+1, 5) arrays holding 5-points (x,y,z,t,i) for i in N paths.

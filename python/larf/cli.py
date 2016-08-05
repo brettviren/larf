@@ -605,57 +605,6 @@ def cmd_velocity(ctx, method, raster, name):
     ses.commit()
     announce_result('velocity', res)
 
-@cli.command("current")
-@click.option('-v', '--velocity', default = None,
-              help='The input velocity result.')
-@click.option('-w', '--weight', default = None,
-              help='The input weighting result.')
-@click.option('-q', '--charge', default = -1.0,
-              help='Charge in number of electrons.')
-
-@click.argument('name')
-@click.pass_context
-def cmd_current(ctx, velocity, weight, charge, name):
-    '''
-    Produce scalar field of instantaneous current at each point 
-    '''
-    from larf.models import Result, Array
-
-    ses = ctx.obj['session']
-
-    vres= larf.store.result_typed(ses, 'velocity', velocity)
-    varr = vres.array_data_by_type()
-    v = varr['gvector']
-    vgrid = varr['mgrid']
-
-    wres= larf.store.result_typed(ses, 'raster', weight)
-    warr = wres.array_data_by_type()
-    w = warr['gvector']
-    wgrid = warr['mgrid']
-
-    if v.shape != w.shape:
-        click.error("Velocity and weight fields have incompatible shapes.")
-        return 1
-    if not numpy.all(vgrid == wgrid):
-        click.error("Velocity and weight fields have incompatible grids.")
-        return 1
-
-    if charge > 0:
-        charge *= -1
-    cur = v[0]*w[0] + v[1]*w[1] + v[2]*w[2]
-    cur *= charge * 1.60217662e-19 # now, amps
-
-    res = Result(name=name, type='raster', parents=[vres, wres],
-                 params=dict(),
-                 arrays=[
-                     Array(name='domain', type='mgrid', data=vgrid),
-                     Array(name="current", type="gscalar", data=cur),
-                 ])
-    ses.add(res)
-    ses.flush()
-    ses.commit()
-    announce_result('current', res)
-    return
 
 @cli.command("step")
 @click.option('-s', '--step', 
@@ -686,22 +635,189 @@ def cmd_step(ctx, step, velocity, name):
     par = ctx.obj['params']
     all_steps = list()
     
-    # Fixme: allow for multiple methods
-    methname, params = tocall[0]
-    meth = larf.util.get_method(methname)
-    params.update(par)
-    arr = meth(vfield, mgrid, **params)
-    all_steps.append(arr)
-    steps = numpy.vstack(all_steps)
-    res = Result(name=name, type='stepping', parents=[velores],
-                 params=dict(method=methname, params=params),
-                 arrays=[Array(name='steps', type='steps', data=steps)])
+    arrays = list()
+    calls = list()
+    for methname, params in tocall:
+
+        meth = larf.util.get_method(methname)
+        params.update(par)
+        calls.append(dict(method=methname, params=params))
+
+        arrays += meth(vfield, mgrid, **params)
+
+
+    sarrays = [Array(type='path', name=n, data=a) for n,a in arrays]
+
+    res = Result(name=name, type='stepping', parents=[velores], params = calls, arrays = sarrays)
     ses.add(res)
+
     ses.flush()
     resid = res.id
     ses.commit()
     announce_result('steps', res)
     return
+
+@cli.command("stepfilter")
+@click.option('-f', '--stepfilter', 
+              help='The "[stepfilter]" configuration file section.')
+@click.option('-s', '--stepping', default = None,
+              help='The input stepping result.')
+@click.argument('name')
+@click.pass_context
+def cmd_stepfilter(ctx, stepfilter, stepping, name):
+    import larf.store
+    from larf.models import Result, Array
+
+    if stepfilter is None:
+        stepfilter = name
+
+    cfg = ctx.obj['cfg']
+    tocall = larf.config.methods_params(cfg, 'stepfilter %s' % stepfilter)
+    
+    ses = ctx.obj['session']
+    stepres= larf.store.result_typed(ses, 'stepping', stepping)
+    arrays = [(a.name, a.data) for a in stepres.arrays]
+
+    calls = list()
+    par = ctx.obj['params']
+    for methname, params in tocall:
+        meth = larf.util.get_method(methname)
+        params.update(par)
+        calls.append(dict(method=methname, params=params))
+        arrays = meth(arrays, **params)
+
+
+    sarrays = [Array(type='path', name=n, data=a) for n,a in arrays]
+    res = Result(name=name, type='stepping', parents=[stepres], params = calls, arrays = sarrays)
+    ses.add(res)
+
+    ses.flush()
+    resid = res.id
+    ses.commit()
+    announce_result('stepfilter', res)
+
+
+@cli.command("current")
+@click.option('-s', '--stepping', default = None,
+              help='The input stepping result.')
+@click.option('-w', '--weight', default = None,
+              help='The input weighting potential result.')
+@click.option('-q', '--charge', default = 1.0,
+              help='Charge in number of electrons.')
+@click.argument('name')
+@click.pass_context
+def cmd_current(ctx, stepping, weight, charge, name):
+    '''
+    Produce currents along steps.
+    '''
+    from larf.models import Result, Array
+    from larf.vector import Scalar
+    from larf.util import mgrid_to_linspace
+    import larf.current
+
+    ses = ctx.obj['session']
+
+    sres= larf.store.result_typed(ses, 'stepping', stepping)
+
+    wres= larf.store.result_typed(ses, 'raster', weight)
+    warr = wres.array_data_by_type()
+    linspaces = mgrid_to_linspace(warr['mgrid'])
+    weight = Scalar(warr['gscalar'], linspaces)
+
+    # fixme: this needs to go in a module with the usual "tocall" pattern.
+    arrays = list()
+    for pname, path in sorted(sres.array_data_by_name().items()):
+        wf = larf.current.stepwise(weight, path, charge)
+        arrays.append(Array(name=pname, type='pscalar', data=wf))
+
+    res = Result(name=name, type='current', parents=[sres, wres],
+                 params=dict(),
+                 arrays=arrays)
+    ses.add(res)
+    ses.flush()
+    ses.commit()
+    announce_result('current', res)
+    return
+
+@cli.command("dqdt")
+@click.option('-s', '--stepping', default = None,
+              help='The input stepping result.')
+@click.option('-b', '--boundary', default = None,
+              help='The input weighting boundary result.')
+@click.option('-q', '--charge', default = 1.0,
+              help='Charge in number of electrons.')
+@click.argument('name')
+@click.pass_context
+def cmd_dqdt(ctx, stepping, boundary, charge, name):
+    '''
+    Produce currents along steps using dQ/dt method
+    '''
+    from larf.models import Result, Array
+    from larf.util import mgrid_to_linspace
+    import bempp.api
+    import larf.mesh
+    import larf.raster
+
+    ses = ctx.obj['session']
+
+    sres= larf.store.result_typed(ses, 'stepping', stepping)
+    
+
+    bres= larf.store.result_typed(ses, 'boundary', boundary)
+    barrs = bres.array_data_by_name()
+
+    meshres = bres.parent_by_type('mesh')
+    grid = larf.mesh.result_to_grid(meshres)
+
+    dfun = bempp.api.GridFunction(grid, coefficients = barrs['dirichlet'])
+    nfun = bempp.api.GridFunction(grid, coefficients = barrs['neumann'])
+
+    weight = larf.raster.Points(grid,dfun,nfun)
+
+    arrays = list()
+    for pname, path in sorted(sres.array_data_by_name().items()):
+        points = path[:,:3]
+        times = path[:,3]
+        weights = weight(*points)
+        dqdt = charge * (weights[1:] - weights[:-1])/(times[1:] - times[:-1])
+        dqdt = numpy.hstack(([0], dqdt)) # gain back missed point
+        print pname, dqdt.shape
+        arrays.append(Array(name=pname, type='pscalar', data=dqdt))
+
+    res = Result(name=name, type='current', parents=[sres, bres],
+                 params=dict(), arrays=arrays)
+    ses.add(res)
+    ses.flush()
+    ses.commit()
+    announce_result('current', res)
+    return
+
+@cli.command("response")
+@click.option('-c', '--current', default = None,
+              help='The input current result.')
+@click.option('-r', '--response', default = None,
+              help='The [response] configuration section.')
+@click.option('-p', '--plane', type=click.Choice(['U','V','W']),
+              help='The plane.') # fixme, this should be a config param, not command param
+@click.argument("name")
+@click.pass_context
+def cmd_response(ctx, current, response, plane, name):
+    '''
+    Make response functions.
+    '''
+    import larf.response
+    ses = ctx.obj['session']
+
+    cres= larf.store.result_typed(ses, 'current', current)
+    currents = cres.array_data_by_name()
+    
+    sres = cres.parent_by_type('stepping')
+    paths = sres.array_data_by_name()
+
+
+    larf.response.quick_and_dirty(paths, currents, name, plane) # fixme: should be configured
+    return
+
 
 # fixme: make velocity optional and pick it up from the current fields parent
 @cli.command("waveforms")
@@ -756,7 +872,7 @@ def cmd_waveforms(ctx, waveform, velocity, current, name):
                  params=dict(method=methname, params=params),
                  arrays=[
                      Array(name='points', type='path', data=pts),
-                     Array(name='current', type='pscalar', data=waveforms)])
+                     Array(name='current', type='pscalar', data=waveforms)]) # fixme, pscalar is wrong type
     ses.add(res)
     ses.flush()
     resid = res.id
