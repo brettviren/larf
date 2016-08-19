@@ -97,11 +97,11 @@ lcar = {lcar};
             icirc2 += leap + iplane
             geostr += 'Circle(%d) = {%d, %d, %d};\n' % (icirc, icirc1, icenter, icirc2)
         
-    linenums = ','.join(["-%d" % (x+1,) for x in range(nsegments)])
+    linenums = ','.join(["%d" % (x+1,) for x in range(nsegments)])
     geostr += 'Extrude{{0,0,length}, {0,0,1}, {0,0,0}, %f}{ Line{%s}; }\n' % (extrurotang, linenums)
 
-    loop1 = ','.join([str(1+n) for n in range(nsegments)])
-    loop2 = ','.join([str(-1*(nsegments+1+n)) for n in range(nsegments)])
+    loop1 = ','.join([str(-1*(1+n)) for n in range(nsegments)])
+    loop2 = ','.join([str(+1*(nsegments+1+n)) for n in range(nsegments)])
 
     geostr += 'Line Loop(%d) = {%s};\n' % (nsegments+1, loop1)
     geostr += 'Plane Surface(%d) = {%d};\n' % (nsegments+2, nsegments+1)
@@ -111,6 +111,7 @@ lcar = {lcar};
 
     geostr += 'Mesh.Algorithm = 6;\n'
 
+    print geostr
     return geostr
 
 def straw(length=10.0*mm, radius=1.0*mm, lcar=1.0*mm, nsegments=6, extrurotang=0.0, **kwds):

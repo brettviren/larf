@@ -17,21 +17,26 @@ cres = larf.store.result_typed(ses, 'current', cur_res_id)
 currents = cres.array_data_by_name()
 
 sres = cres.parent_by_type('stepping')
-paths = sres.array_data_by_name()
-
-fig, axes = plt.subplots(nrows=11, ncols=11, sharex=True)
 
 
-for pname, path in paths.items():
-    current = currents[pname] * 1e-6
-    time = path[:,3] / us
+nrows = ncols = 3
+fig, axes = plt.subplots(nrows=nrows, ncols=ncols, sharex=True)
 
-    x0 = path[0,1]
-    y0 = path[0,1]
-    z0 = path[0,2]
 
-    iy = int(round((5*mm+y0)/(1*mm)))
-    iz = int(round((5*mm+z0)/(1*mm)))
+for stype,sname,sarr in sres.triplets():
+    if stype != 'path':
+        continue
+    print stype,sname
+
+    current = currents[sname] * 1e-6
+    time = sarr[:,3] / us
+
+    x0 = sarr[0,0]
+    y0 = sarr[0,1]
+    z0 = sarr[0,2]
+
+    iy = int(round((1*mm+y0)/(1*mm)))
+    iz = int(round((1*mm+z0)/(1*mm)))
 
     a = axes[iy,iz]
 

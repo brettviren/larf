@@ -2,8 +2,10 @@
 
 import sys
 import larf.store
-from larf.units import us
+from larf.units import mm, us
 import matplotlib.pyplot as plt
+import numpy
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 dbfile = sys.argv[1]
@@ -12,36 +14,66 @@ outname = sys.argv[3]
 
 ses = larf.store.session(dbfile)
 sres = larf.store.result_typed(ses, 'stepping', step_res_id)
-paths = sres.array_data_by_name()
 
-
-fig, axes = plt.subplots(nrows=2, ncols=2, sharex=False, sharey=True)
-
-fig.suptitle('Stepping Paths (%s)' % sres.name)
-
-for pname, path in paths.items():
-    x=path[:,0]
-    y=path[:,1]
-    a = axes[0,0]
-    a.plot(x,y)
-#    a.set_xlabel('X [mm]')
-    a.set_ylabel('Y [mm]')
-
-for pname, path in paths.items():
-    x=path[:,0]
-    z=path[:,2]
-    a = axes[1,0]
-    a.plot(x,z)
-    a.set_xlabel('X [mm]')
-    a.set_ylabel('Z [mm]')
-
-for pname, path in paths.items():
-    y=path[:,1]
-    z=path[:,2]
-    a = axes[1,1]
-    a.plot(y,z)
-    a.set_xlabel('Y [mm]')
-    a.set_ylabel('Z [mm]')
     
-fig.savefig(outname + ".pdf")    
+with PdfPages('%s.pdf' % outname) as pdf:
+    for array_type,pname,path in sorted(sres.triplets()):
+        if array_type != 'path':
+            continue
+        print pname
 
+        fig, axes = plt.subplots(nrows=3, ncols=2, sharex=True)
+        fig.suptitle('Stepping Paths (%s/%s)' % (sres.name, pname))
+
+        x = path[:,0]
+        z = path[:,1]
+        y = path[:,2]
+        t = path[:,3]
+        r = path[:,:3]
+
+        dx = x[1:] - x[:-1]
+        dy = y[1:] - y[:-1]
+        dz = z[1:] - z[:-1]
+        dt = t[1:] - t[:-1]
+
+        dr = numpy.sqrt(dx**2 + dy**2 + dz**2)
+        speed = dr/dt
+
+        a = axes[0,0]
+        a.plot(t/us,x/mm)
+        a.set_ylabel('X [mm]')
+        a.yaxis.set_label_position("right")
+
+        a = axes[1,0]
+        a.plot(t/us,y/mm)
+        a.set_ylabel('Y [mm]')
+        a.yaxis.set_label_position("right")
+
+        a = axes[2,0]
+        a.plot(t/us, z/mm)
+        a.set_ylabel('Z [mm]')
+        a.yaxis.set_label_position("right")
+
+        a.set_xlabel("time [us]")
+
+        a = axes[0,1]
+        a.plot(t[:-1]/us, speed/(mm/us))
+        a.set_ylabel('speed [mm/us]')
+        a.yaxis.tick_right()
+
+        a = axes[1,1]
+        a.plot(t[:-1]/us, dx/mm)
+        a.set_ylabel('dx [mm]')
+        a.yaxis.tick_right()
+
+        a = axes[2,1]
+        a.plot(t[:-1]/us, dy/mm)
+        a.plot(t[:-1]/us, dz/mm)
+        a.set_ylabel('dy+dz [mm]')
+        a.yaxis.tick_right()
+
+        a.set_xlabel('time [us]')
+
+        pdf.savefig()
+
+        plt.close()

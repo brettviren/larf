@@ -89,19 +89,25 @@ def save_boundary_vtk(result, outfile, **kwds):
     pd.points = points
     pd.polys = triangles
 
-    if len(result.arrays) > 2:
-        print 'Warning: got more boundary arrays than expected.  Last one of a type wins.'
-        for arr in result.arrys:
-            print arr.type, arr.name, arr.data.shape
 
+    npoint = ncell = 0
     for arr in result.arrays:
         if arr.type == 'ptscalar':
-            pd.point_data.scalars = arr.data
-            pd.point_data.scalars.name = arr.name
+            pd.point_data.add_array(arr.data)
+            pd.point_data.get_array(npoint).name = arr.name
+            print "Adding <%s> %s [%d] as point data #%d" % (arr.type, arr.name, len(arr.data), npoint)
+            npoint += 1
+
+            #pd.point_data.scalars = arr.data
+            #pd.point_data.scalars.name = arr.name
             continue
         if arr.type == 'elscalar':
-            pd.cell_data.scalars = arr.data
-            pd.cell_data.scalars.name = arr.name
+            pd.cell_data.add_array(arr.data)
+            pd.cell_data.get_array(ncell).name = arr.name
+            print "Adding <%s> %s [%d] as cell data #%d" % (arr.type, arr.name, len(arr.data), npoint)
+            ncell += 1
+            #pd.cell_data.scalars = arr.data
+            #pd.cell_data.scalars.name = arr.name
             continue
         print 'Warning: unknown array type: %s %s %s' % (arr.type, arr.name, arr.data.shape)
 

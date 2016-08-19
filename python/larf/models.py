@@ -88,6 +88,8 @@ class Result(Base):
         return {a.type:a.data for a in self.arrays}
     def array_data_by_name(self):
         return {a.name:a.data for a in self.arrays}
+    def triplets(self):
+        return [ (a.type,a.name,a.data) for a in self.arrays ]
 
     def parent_by_type(self, type):
         for p in self.parents:

@@ -21,6 +21,20 @@ from larf.bem import spaces
 from larf.models import Array
 
 class Points(object):
+    def __init__(self, grid, dfun, sol):
+        self.dfun = dfun
+        self.sol = sol
+        self.pcspace, self.plspace = spaces(grid)
+
+    def __call__(self, *points):
+        npoints = len(points)
+        points = np.asarray(points).T
+
+        slp_pot = bempp.api.operators.potential.laplace.single_layer(self.pcspace, points)
+        ret = slp_pot * self.sol
+        return ret.reshape((npoints))
+        
+class PointsOld(object):
     def __init__(self, grid, dfun, nfun):
         self.dfun = dfun
         self.nfun = nfun
@@ -35,7 +49,41 @@ class Points(object):
         return ret.reshape((npoints))
         
 
-def linear(grid, dfun, nfun,
+def linear(grid, dfun, sol,
+           linspaces=[(-1.,1.,10), (-2.,2.,20), (-3.,3.,30)], **kwds):
+    '''
+    Evaluate the potential on a linear grid space.
+    '''
+    # "piecewise const/linear space"
+    pcspace, plspace = spaces(grid)
+    ndim = len(linspaces)
+    linspaces = [np.linspace(*ls) for ls in linspaces]
+    mgrid = np.meshgrid(*linspaces, indexing='ij')
+    points = np.vstack([mgrid[i].ravel() for i in range(ndim)])
+
+    slp_pot = bempp.api.operators.potential.laplace.single_layer(pcspace, points)
+    #dlp_pot = bempp.api.operators.potential.laplace.double_layer(plspace, points)
+    #u_evaluated = slp_pot*nfun-dlp_pot*dfun
+    u_evaluated = slp_pot * sol
+
+    print 'u_evaluated.shape=',u_evaluated.shape, u_evaluated.T[0], points.T[0]
+    u_reshaped = u_evaluated.reshape(mgrid[0].shape)
+    print 'u_reshaped.shape=',u_reshaped.shape
+
+    dxyz = [(ls[1]-ls[0])/(ls[2]-1) for ls in linspaces]
+    u_grad = np.asarray(np.gradient(u_reshaped, *dxyz))
+
+    return [
+        Array(type='linspace', name='bins', data = np.asarray(linspaces)),
+        Array(type='mgrid', name='domain', data=mgrid),
+        Array(type='gscalar', name='scalar', data = u_reshaped),
+        Array(type='gvector', name='gradient', data = u_grad),
+#        Array(type='points', name='points', data = points.T),
+    ]
+    
+
+
+def linear_old(grid, dfun, nfun,
            linspaces=[(-1.,1.,10), (-2.,2.,20), (-3.,3.,30)], **kwds):
     '''
     Evaluate the potential on a linear grid space.

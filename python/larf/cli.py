@@ -21,12 +21,16 @@ from larf.store import get_matching_results, get_derived_results
 @click.pass_context
 def cli(ctx, config, store, param):
     from larf.util import listify, unit_eval
+    import larf.solve
 
     params = dict()
     for p in listify(' '.join(param), delim=': '):
         k,v = p.split('=')
         params[k] = v
-    ctx.obj['params'] = unit_eval(params)
+
+    params = unit_eval(params)
+
+    ctx.obj['params'] = params
 
     import larf.config
     if config:
@@ -411,9 +415,14 @@ def cmd_boundary(ctx, boundary, mesh, name):
     '''
     Solve surface boundary potentials.
     '''
+    import larf.bem
     import larf.solve
-    par = ctx.obj['params']
-    par = larf.solve.gaussian_quadrature_orders(**par)
+    cfg = ctx.obj['cfg']
+    tocall = larf.config.methods_params(cfg, 'boundary %s' % boundary)
+    methname, methparams = tocall[0] # just first
+
+    methparams = larf.bem.knobs(**methparams)
+
 
     import larf.config
     import larf.util
@@ -427,23 +436,23 @@ def cmd_boundary(ctx, boundary, mesh, name):
     meshres = larf.store.result_typed(ses, 'mesh', mesh)
     grid = larf.mesh.result_to_grid(meshres)
 
-    cfg = ctx.obj['cfg']
-    tocall = larf.config.methods_params(cfg, 'boundary %s' % boundary)
-    methname, methparams = tocall[0] # just first
+
+    par = ctx.obj['params']
     methparams.update(**par)
     meth = larf.util.get_method(methname)
 
     dirichlet_data = meth(**methparams)
     #print dirichlet_data
     
-    dfun, nfun = larf.solve.boundary_functions(grid, dirichlet_data)
+    #dfun, nfun = larf.solve.boundary_functions(grid, dirichlet_data)
+    tna = larf.solve.boundary_functions(grid, dirichlet_data)
+    arrays = [Array(name=n, type=t, data=a) for t,n,a in tna]
+#                     Array(name='dirichlet', type='ptscalar', data=dfun.coefficients),
+#                     Array(name='neumann', type='elscalar', data=nfun.coefficients),
 
     res = Result(name=name, type='boundary', parents=[meshres],
                  params=dict(method=methname, params=methparams),
-                 arrays = [
-                     Array(name='dirichlet', type='ptscalar', data=dfun.coefficients),
-                     Array(name='neumann', type='elscalar', data=nfun.coefficients),
-                 ])
+                 arrays = arrays)
     ses.add(res)
     ses.flush()
     #click.echo("produced solution result #%d" % res.id)
@@ -514,9 +523,11 @@ def cmd_raster(ctx, raster, boundary, name):
     '''
     Evaluate a solution on a grid of points.
     '''
-    import larf.solve
+    import larf.bem
+
+    larf.bem.knobs(hmat_mbs = 1000)
+
     par = ctx.obj['params']
-    par = larf.solve.gaussian_quadrature_orders(**par)
 
     import larf.config
     import larf.mesh
@@ -532,9 +543,14 @@ def cmd_raster(ctx, raster, boundary, name):
     meshres = potres.parent_by_type('mesh')
     grid = larf.mesh.result_to_grid(meshres)
 
-    potarrs = potres.array_data_by_name()
-    dfun = bempp.api.GridFunction(grid, coefficients = potarrs['dirichlet'])
-    nfun = bempp.api.GridFunction(grid, coefficients = potarrs['neumann'])
+    funs = list()
+    for typ,nam,arr in potres.triplets():
+        if typ in ['ptscalar','elscalar']:
+            print "Input array: <%s> %s" % (typ, nam)
+            fun = bempp.api.GridFunction(grid, coefficients = arr)
+            funs.append(fun)
+    #dfun = bempp.api.GridFunction(grid, coefficients = potarrs['dirichlet'])
+    #nfun = bempp.api.GridFunction(grid, coefficients = potarrs['neumann'])
     
     cfg = ctx.obj['cfg']
     tocall = larf.config.methods_params(cfg, 'raster %s' % raster)
@@ -543,7 +559,10 @@ def cmd_raster(ctx, raster, boundary, name):
     for methname, methparams in tocall:
         meth = larf.util.get_method(methname)
         methparams.update(**par)
-        arrays = meth(grid, dfun, nfun, **methparams)
+        methparams = larf.bem.knobs(**methparams)
+
+        # eg larf.raster.linear
+        arrays = meth(grid, *funs, **methparams)
         res = Result(name=name, type='raster', parents=[potres, meshres],
                      params=dict(method=methname, params=methparams),
                      arrays = arrays)
@@ -657,6 +676,58 @@ def cmd_step(ctx, step, velocity, name):
     announce_result('steps', res)
     return
 
+@cli.command("rogue")
+@click.option('-d', '--drift-boundary', default=None,
+              help='The drift boundary result.')
+@click.option('-r', '--rogue', 
+              help='The "[rogue]" configuration file section.')
+@click.argument('name')
+@click.pass_context
+def cmd_rogue(ctx, drift_boundary, rogue, name):
+    '''
+    Make paths through a dark and dangerous dungeon.
+    '''
+    import larf.bem
+
+    cfg = ctx.obj['cfg']
+    tocall = larf.config.methods_params(cfg, 'rogue %s' % rogue)
+    methname, params = tocall[0] # eg: larf.rogue.patch
+
+    params = larf.bem.knobs(**params)
+
+    import larf.store
+    import larf.boundary
+    from larf.models import Result, Array
+    import bempp.api
+    from larf.raster import Points
+
+    if rogue is None:
+        rogue = name
+
+    ses = ctx.obj['session']
+    bres = larf.store.result_typed(ses, 'boundary', drift_boundary)
+
+    # fixme: this unpacking really depends on vagaries of the order in
+    # which arrays were saved in the result.  Brittle!
+    potential = Points(*larf.boundary.result_to_grid_funs(bres))
+
+
+    meth = larf.util.get_method(methname)
+    par = ctx.obj['params']
+    params.update(par)
+    type_name_paths = meth(potential, **params)
+    
+    sarrays = [Array(type=t, name=n, data=a) for t,n,a in type_name_paths]
+    res = Result(name=name, type='stepping', parents=[bres], params = params, arrays = sarrays)
+    ses.add(res)
+
+    ses.flush()
+    ses.commit()
+    announce_result('rogue', res)
+    return
+    
+
+
 @cli.command("stepfilter")
 @click.option('-f', '--stepfilter', 
               help='The "[stepfilter]" configuration file section.')
@@ -754,6 +825,8 @@ def cmd_dqdt(ctx, stepping, boundary, charge, name):
     '''
     from larf.models import Result, Array
     from larf.util import mgrid_to_linspace
+    from larf.raster import Points
+    from larf.boundary import result_to_grid_funs
     import bempp.api
     import larf.mesh
     import larf.raster
@@ -761,28 +834,23 @@ def cmd_dqdt(ctx, stepping, boundary, charge, name):
     ses = ctx.obj['session']
 
     sres= larf.store.result_typed(ses, 'stepping', stepping)
-    
 
     bres= larf.store.result_typed(ses, 'boundary', boundary)
     barrs = bres.array_data_by_name()
-
-    meshres = bres.parent_by_type('mesh')
-    grid = larf.mesh.result_to_grid(meshres)
-
-    dfun = bempp.api.GridFunction(grid, coefficients = barrs['dirichlet'])
-    nfun = bempp.api.GridFunction(grid, coefficients = barrs['neumann'])
-
-    weight = larf.raster.Points(grid,dfun,nfun)
+    weight = Points(*result_to_grid_funs(bres))
 
     arrays = list()
-    for pname, path in sorted(sres.array_data_by_name().items()):
-        points = path[:,:3]
-        times = path[:,3]
+    for typ,nam,arr in sorted(sres.triplets()):
+        if typ != "path":
+            continue
+
+        points = arr[:,:3]
+        times = arr[:,3]
         weights = weight(*points)
         dqdt = charge * (weights[1:] - weights[:-1])/(times[1:] - times[:-1])
         dqdt = numpy.hstack(([0], dqdt)) # gain back missed point
-        print pname, dqdt.shape
-        arrays.append(Array(name=pname, type='pscalar', data=dqdt))
+        print nam, dqdt.shape
+        arrays.append(Array(name=nam, type='pscalar', data=dqdt))
 
     res = Result(name=name, type='current', parents=[sres, bres],
                  params=dict(), arrays=arrays)
@@ -791,6 +859,7 @@ def cmd_dqdt(ctx, stepping, boundary, charge, name):
     ses.commit()
     announce_result('current', res)
     return
+
 
 @cli.command("response")
 @click.option('-c', '--current', default = None,

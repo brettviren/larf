@@ -14,6 +14,61 @@ def boundary_functions(grid, boundary_potential):
     print 'space DoFs: const=%d linear=%d' % (piecewise_const_space.global_dof_count,
                                               piecewise_lin_space.global_dof_count)
                                          
+    slp = bempp.api.operators.boundary.laplace.single_layer(
+        piecewise_const_space, piecewise_const_space, piecewise_const_space)
+
+    t3 = now()
+
+    try: 
+        dirichlet_fun = bempp.api.GridFunction(piecewise_const_space, fun=dirichlet_data)
+    except RuntimeError:
+        print dirichlet_data
+        raise
+        #bempp.api.export(grid_function=dirichlet_fun, file_name=outname+'_dirichlet.msh')
+
+    t4 = now()
+
+    #print 'Made boundary function in %.1f sec' % (t4-t3,)
+
+    print 'Evaluating integral equation'
+    rhs = dirichlet_fun
+    lhs = slp
+        
+    t5 = now()
+    print '\tin %.1f sec' % (t5-t4,)
+    print dirichlet_data
+
+    sol, info, residuals = bempp.api.linalg.gmres(slp, rhs, tol=1E-6, return_residuals=True, use_strong_form=True)
+
+    # print 'Solving for Neumann boundary conditions'
+    # ident = bempp.api.operators.boundary.sparse.identity(piecewise_const_space, 
+    #                                                      piecewise_const_space, piecewise_const_space)
+    # adjoint_dlp = bempp.api.operators.boundary.laplace.adjoint_double_layer(
+    #     piecewise_const_space, piecewise_const_space, piecewise_const_space)
+    # neumann_fun = (-.5 * ident + adjoint_dlp) * sol
+
+    #bempp.api.export(grid_function=neumann_fun, file_name=outname+'_neumann.msh')
+    #print type(neumann_fun)
+
+    t6 = now()
+    print '\tin %.1f sec' % (t6-t5)
+
+    return [('elscalar', 'dirichlet', dirichlet_fun.coefficients),
+            ('elscalar', 'solution', sol.coefficients),
+            ('pscalar', 'residuals', np.asarray(residuals))]
+
+
+def boundary_functions_old(grid, boundary_potential):
+
+    dirichlet_data = boundary_potential
+
+    t1 = now()
+    piecewise_const_space, piecewise_lin_space = spaces(grid)
+
+    t2 = now()
+    print 'space DoFs: const=%d linear=%d' % (piecewise_const_space.global_dof_count,
+                                              piecewise_lin_space.global_dof_count)
+                                         
 
     identity = bempp.api.operators.boundary.sparse.identity(
         piecewise_lin_space, piecewise_lin_space, piecewise_const_space)
@@ -52,7 +107,9 @@ def boundary_functions(grid, boundary_potential):
     t6 = now()
     print '\tin %.1f sec' % (t6-t5)
 
-    return dirichlet_fun, neumann_fun
+    #return dirichlet_fun, neumann_fun
+    return [('ptscalar', 'dirichlet', dirichlet_fun.coefficients),
+            ('elscalar', 'neumann', neumann_fun.coefficients)]
 
 def save(filename, grid, dirichlet_fun, neumann_fun):
     lv = grid.leaf_view
@@ -88,34 +145,3 @@ def load(filename):
 
 
 
-def gaussian_quadrature_orders(gqo_near=4, gqo_medium=3, gqo_far=2, gqo_ds=6, **kwds):
-    '''
-    Set the orders of the BEM++ Gaussian quadrature.
-
-    Solutions may have sub-domains where the potential is
-    discontinuous on their borders.  Increasing the near, medium or
-    far orders may help produce a more correct and smooth solution.
-
-    http://www.bempp.org/quadrature.html?highlight=global_parameters
-
-    @todo: add setting of distance scales.
-    '''
-    import bempp.api
-    q = bempp.api.global_parameters.quadrature
-    if gqo_ds:
-        q.double_singular = gqo_ds
-    if gqo_near:
-        q.near.single_order = gqo_near
-        q.near.double_order = gqo_near
-    if gqo_medium:
-        q.medium.single_order = gqo_medium
-        q.medium.double_order = gqo_medium
-    if gqo_far:
-        q.far.single_order = gqo_far
-        q.far.double_order = gqo_far
-
-    kwds['gqo_ds'] = q.double_singular
-    kwds['gqo_near'] = q.near.single_order
-    kwds['gqo_medium'] = q.medium.single_order
-    kwds['gqo_far'] = q.far.single_order
-    return kwds

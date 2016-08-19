@@ -18,6 +18,7 @@ def quick_and_dirty(paths, currents, outname, plane='U', pitch=3*mm):
         angle = -60*deg
     if plane == 'W':
         offset_pitch = 0.5*pitch  
+        legend_loc = "upper left"
 
     wire = numpy.asarray((0, math.cos(angle), math.sin(angle)))
 
