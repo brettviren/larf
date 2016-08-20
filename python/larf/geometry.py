@@ -13,7 +13,7 @@ Shapes have methods
 import numpy
 import math
 from collections import defaultdict
-from larf.units import mm, deg
+from larf.units import mm, deg, V
 from larf.util import arrayify_dictlist, append_dictlist
 
 def approach(point, center, direction):
@@ -223,7 +223,8 @@ class CircularWirePlane(object):
                  domain_offset=0, # count domains
                  nsegments=6,   # wire cross section
                  lcar=None,     # characteristic length
-                 point_data=None, cell_data=None):
+                 point_data=None, # a dictionary applied to all points
+                 cell_data=None): # a dictionary applied to all cells
         
         self.point_data = point_data or dict()
         self.cell_data = cell_data or dict()
@@ -263,9 +264,6 @@ class CircularWirePlane(object):
             domain = domain_offset + count
             pd = dict(self.point_data)
             pd['domain'] = domain
-            pd['weight'] = 0.0
-            if central_wire == count:
-                pd['weight'] = 1.0
             cyl = Cylinder(wire_radius, height, center, wdir,
                            nsegments, lcar,
                            point_data=pd, cell_data=self.cell_data)
@@ -328,3 +326,76 @@ class CircularWirePlane(object):
 
         return p , dict(triangle=e), point_data, cell_data, field_data
 
+
+class CircularWirePlanes(object):
+    def __init__(self,
+                 bounds_radius, wire_radius,
+                 planex = (3*mm,0,-3*mm),
+                 pitch = 3*mm,  # distance perpendicular between wires
+                 angle = (60*deg, -60*deg, 0), # angle of wires w.r.t Z axis
+                 offset = (0., 0., 1.5*mm),  # offset in pitch direction
+                 domain_offsets = (100, 200, 300),
+                 nsegments=6,   # wire cross section
+                 lcar=None,     # characteristic length
+                 point_data=None, cell_data=None):
+
+        self.planes = list()
+        for x,ang,off,dof in zip(planex, angle, offset, domain_offsets):
+            plane = CircularWirePlane(bounds_radius, wire_radius,
+                                      pitch = pitch,
+                                      angle = ang,
+                                      offset = off,
+                                      centerx = x,
+                                      domain_offset = dof,
+                                      nsegments = nsegments,
+                                      lcar = lcar)
+            self.planes.append(plane)
+        return
+    
+    
+    @property
+    def surface_mesh(self):
+        if hasattr(self,'_smesh'):
+            return self._smesh
+
+        # fixme: this is almost entirely copy-paste from CircularWirePlane.surface_mesh!
+        points = list()
+        elements = list()
+        offset = 0
+        point_data = defaultdict(list)
+        cell_data = defaultdict(list)
+        field_data = defaultdict(list)
+
+        for iplane, plane in enumerate(self.planes):
+            p, e, pd, cd, fd = plane.surface_mesh
+            if pd:
+                for k,v in pd.items():
+                    point_data[k].append(v)
+            if cd:
+                for k,v in cd.items():
+                    cell_data[k].append(v)
+            if fd:
+                for k,v in fd.items():
+                    field_data[k].append(v)
+
+            e = e['triangle']
+            e += offset
+            offset += len(p)
+            points.append(p)
+            elements.append(e)
+
+
+        p = numpy.vstack(points)
+        e = numpy.vstack(elements)
+
+        for k,v in point_data.items():
+            v = numpy.hstack(v)
+            point_data[k] = v
+            print k,v.shape
+        for k,v in cell_data.items():
+            cell_data[k] = numpy.hstack(v)
+        for k,v in field_data.items():
+            field_data[k] = numpy.hstack(v)
+
+        return p , dict(triangle=e), point_data, cell_data, field_data
+            

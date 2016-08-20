@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from larf.geometry import Cylinder, CircularWirePlane
+from larf.geometry import Cylinder, CircularWirePlane, CircularWirePlanes
 import meshio
 import time
 import math
@@ -47,10 +47,24 @@ def test_plane():
     print '%d wires in %.3f seconds' % (len(plane.wires), t2-t1)
     write_file('plane', p, e, pd, cd, fd)    
 
+
+def test_planes():
+    t1 = time.time()
+    planes = CircularWirePlanes(30, 0.15)
+    p,e,pd,cd,fd = planes.surface_mesh
+    t2 = time.time()
+
+    print 'three wire planes in %.3f seconds' % (t2-t1)
+    for plane in planes.planes:
+        print '\t%d wires' % len(plane.wires)
+
+    write_file('planes', p, e, pd, cd, fd)    
+
     
 
 if '__main__' == __name__:
     #test_wire()
-    test_plane()
+    #test_plane()
+    test_planes()
 
     
