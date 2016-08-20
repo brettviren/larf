@@ -12,6 +12,9 @@ Shapes have methods
 
 import numpy
 import math
+from collections import defaultdict
+from larf.units import mm, deg
+from larf.util import arrayify_dictlist, append_dictlist
 
 def approach(point, center, direction):
     '''
@@ -75,19 +78,25 @@ class Cylinder(object):
 
     epsilon = 1e-9
 
-    def __init__(self, radius, height, center=(0.,0.,0.), direction=(0.,0.,1.), nsegments=6, lcar=None):
+    def __init__(self, radius, height,
+                 center=(0.,0.,0.), direction=(0.,0.,1.),
+                 nsegments=6, lcar=None,
+                 point_data=None, cell_data=None):
         self.radius = radius
         self.height = height
         self.center = numpy.asarray(center)
         self.direction = numpy.asarray(direction)
         self.nsegments = nsegments
-        self.segangle = 2.0*math.pi / float(nsegments)
         self.lcar = lcar or self.radius
+        self.ray = numpy.asarray([self.center-self.height*self.direction,
+                                  self.center+self.height*self.direction])
 
         self.rotz = rotation_matrix((0.,0.,1.), self.direction)
 
         self.points = dict()    # index to point
         self.indices = dict()   # point to index
+        self.point_data = point_data or dict()
+        self.cell_data = cell_data or dict()
 
     def index(self, p):
         p = tuple(p)
@@ -158,27 +167,164 @@ class Cylinder(object):
 
         elements = list()
         l1 = layers[0]
+
         for l2 in layers[1:]:
             ind1 = l1 + [l1[0]] # wrap
             ind2 = l2 + [l2[0]] # around
             l1 = l2             # for nex time
             indices = [ind for pair in zip(ind1, ind2) for ind in pair]
+            flipflop = 1
             while len(indices) >= 3:
                 tri = indices[:3]
+                flipflop *= -1
+                if flipflop<0:
+                    tri.reverse()
                 elements.append(tri)
                 indices.pop(0)
 
+
+        # caps
+        for z,layer in [(-self.height, layers[0]), (self.height,layers[-1])]:
+            cind = self.index((0.0,0.0,z))
+            ind = layer + [layer[0]]
+            
+            while len(ind) >= 2:
+                duo = ind[:2]
+                ind.pop(0)
+                if z > 0:
+                    ele = (cind, duo[0], duo[1])
+                else:
+                    ele = (duo[1], duo[0], cind)
+                elements.append(ele)
+                
 
         points = list()
         for count,(ind,pt) in enumerate(sorted(self.points.items())):
             assert count == ind
             points.append(pt)
 
-        return numpy.asarray(points), dict(triangle=numpy.asarray(elements))
+        points = rotate(self.rotz, points)
+        points += self.center
+
+        pd = {k:numpy.asarray([v]*len(points)) for k,v in self.point_data.items()}
+        cd = {k:numpy.asarray([v]*len(elements)) for k,v in self.cell_data.items()}
+
+        return numpy.asarray(points), dict(triangle=numpy.asarray(elements)), pd, cd, None
                 
+class CircularWirePlane(object):
+    '''
+    Produce a plane of cylindrical wires which are bounded by a circle
+    '''
+    def __init__(self, bounds_radius, wire_radius,
+                 pitch = 3*mm,  # distance perpendicular between wires
+                 angle = 0*deg, # angle of wires w.r.t Z axis
+                 offset = 0.0,  # offset in pitch direction
+                 centerx = 0.0, # where the center of the plane is in X
+                 domain_offset=0, # count domains
+                 nsegments=6,   # wire cross section
+                 lcar=None,     # characteristic length
+                 point_data=None, cell_data=None):
+        
+        self.point_data = point_data or dict()
+        self.cell_data = cell_data or dict()
+
+        wdir = numpy.asarray((0., math.sin(angle), math.cos(angle)))
+        pdir = numpy.asarray((0., math.cos(angle), -math.sin(angle)))
+        voff = numpy.asarray((centerx, 0., 0.))
+        
+        print 'pdir',pdir
+        print 'wdir',wdir
+        print 'voff',voff
+
+        # first make the wires at x=0 in the YZ plane
+        nwires = int(2*bounds_radius/pitch)
+        if 0 == nwires%2:
+            nwires += 1         # force odd
+
+        y1 = -bounds_radius
+        y2 =  bounds_radius
+        endpoint = True
+        if offset:              # pushes one off the plane
+            y1 += offset
+            y2 += offset
+            nwires -= 1
+            endpoint = False
+
+        central_wire = int(nwires//2)
             
+        wires = list()
+        ls = numpy.linspace(y1, y2, nwires, endpoint=endpoint)
+        for count, along_pitch in enumerate(ls):
+            height = math.sqrt(bounds_radius**2 - along_pitch**2)
+            if height == 0.0:
+                continue
+            center = voff + pdir*along_pitch
 
+            domain = domain_offset + count
+            pd = dict(self.point_data)
+            pd['domain'] = domain
+            pd['weight'] = 0.0
+            if central_wire == count:
+                pd['weight'] = 1.0
+            cyl = Cylinder(wire_radius, height, center, wdir,
+                           nsegments, lcar,
+                           point_data=pd, cell_data=self.cell_data)
+            wires.append(cyl)
+
+        self.wires = wires
+        
+    @property
+    def bbox(self):
+        if hasattr(self,'_bbox'):
+            return self._bbox
+
+        bbwires = numpy.asarray([w.bbox for w in self.wires])
+        bbmin = [min(bbwires[:,:,i].flatten()) for i in range(3)]
+        bbmax = [max(bbwires[:,:,i].flatten()) for i in range(3)]
+        self._bbox = numpy.asarray((bbmin, bbmax))
+        return self._bbox
             
+    @property
+    def surface_mesh(self):
+        if hasattr(self,'_smesh'):
+            return self._smesh
+        points = list()
+        elements = list()
+        offset = 0
+        point_data = defaultdict(list)
+        cell_data = defaultdict(list)
+        field_data = defaultdict(list)
+
+        for iwire,wire in enumerate(self.wires):
+            p, e, pd, cd, fd = wire.surface_mesh
+            if pd:
+                for k,v in pd.items():
+                    point_data[k].append(v)
+            if cd:
+                for k,v in cd.items():
+                    cell_data[k].append(v)
+            if fd:
+                for k,v in fd.items():
+                    field_data[k].append(v)
+
+            e = e['triangle']
+            e += offset
+            offset += len(p)
+            points.append(p)
+            elements.append(e)
 
 
+        p = numpy.vstack(points)
+        e = numpy.vstack(elements)
+
+        for k,v in point_data.items():
+            v = numpy.hstack(v)
+            point_data[k] = v
+            print k,v.shape
+        for k,v in cell_data.items():
+            cell_data[k] = numpy.hstack(v)
+        for k,v in field_data.items():
+            field_data[k] = numpy.hstack(v)
+
+        return p , dict(triangle=e), point_data, cell_data, field_data
 

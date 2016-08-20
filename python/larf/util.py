@@ -158,3 +158,26 @@ def box_intersection(point, proto, bounds):
                 hits.append((t, p))
     hits.sort()
     return hits
+
+def append_dictlist(dl1, dl2):
+    '''
+    Append lists in dict dl2 to those in dl1
+    '''
+    if not dl1:
+        return
+    if not dl2:
+        return
+    for k,v in dl2.items():
+        dl1[k].append(v)
+    return dl1
+
+def arrayify_dictlist(dl, arrayifier = numpy.vstack):
+    '''
+    Return dict with lists turned into arrays
+    '''
+    if not dl:
+        return dl
+    ret = dict()
+    for k,v in dl.items():
+        ret[k] = arrayifier(v)
+    return ret
