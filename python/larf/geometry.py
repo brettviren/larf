@@ -72,6 +72,9 @@ def rotate(R, points):
     return numpy.dot(points, R.T)
 
 class Cylinder(object):
+
+    epsilon = 1e-9
+
     def __init__(self, radius, height, center=(0.,0.,0.), direction=(0.,0.,1.), nsegments=6, lcar=None):
         self.radius = radius
         self.height = height
@@ -81,52 +84,100 @@ class Cylinder(object):
         self.segangle = 2.0*math.pi / float(nsegments)
         self.lcar = lcar or self.radius
 
-        self.bbox = numpy.vstack([(self.center + height * self.direction),
-                                  (self.center - height * self.direction)])
         self.rotz = rotation_matrix((0.,0.,1.), self.direction)
+
+        self.points = dict()    # index to point
+        self.indices = dict()   # point to index
+
+    def index(self, p):
+        p = tuple(p)
+        try:
+            return self.indices[p]
+        except KeyError:
+            pass
+        ind = len(self.points)
+        self.points[ind] = p
+        self.indices[p] = ind
+        return ind
+    
+
+    def __str__(self):
+        return "<Cylinder r=%f h=%f c=%s d=%s nseg=%d lcar=%f>" %\
+            (self.radius, self.height, self.center, self.direction, self.nsegments, self.lcar)
+
+    @property
+    def bbox(self):
+        if hasattr(self,'_bbox'):
+            return self._bbox
+        
+        pt, _ = self.surface_mesh
+
+        bb = [[min(pt[:,i]) for i in range(3)],
+              [max(pt[:,i]) for i in range(3)]]
+        self._bbox = numpy.asarray(bb)
+        return self._bbox
+
 
     def inside(self, point):
         # test bounding box first to get lucky
         for ind in range(3):
-            if point[ind]  < min(self.bbox[:,ind]):
+            if point[ind]  < min(self.bbox[:,ind]) - self.epsilon:
                 return False
-            if point[ind]  > max(self.bbox[:,ind]):
+            if point[ind]  > max(self.bbox[:,ind]) + self.epsilon:
                 return False
 
         r = point - self.center
-        shadow = numpy.dot(r, self.direction)*self.direction
+        shadow = numpy.dot(r, self.direction)
         if abs(shadow) > self.height:
             return False        # either above or below the wire along its direction
+        shadow *= self.direction
         topt = r - shadow
         dist = math.sqrt(sum([t**2 for t in topt]))
-        return dist >= self.radius
+        return dist <= self.radius
 
 
+    @property
     def surface_mesh(self):
+        if hasattr(self,'_smesh'):
+            return self._smesh
+
         nsteps = int(2.0*self.height/self.lcar)
         if 0 == nsteps % 2:
             nsteps += 1         # make odd
-        stepsize = 2.0*self.height/nsteps
-        nsteps = (nsteps-1)//2
 
-        self.floors_p = list()
-        self.floors_m = list()
-
-        for istep in range(nsteps):
-            ang = 0.5*self.segangle*istep
-            z = istep*stepsize + 0.5*stepsize
-            for iseg in range(self.nsegments):
-                ang += iseg*self.segangle
+        layers = list()
+        for ilayer,z in enumerate(numpy.linspace(-self.height, self.height, nsteps)):
+            layer = list()
+            ang_offset = ilayer*math.pi/self.nsegments
+            for ang in numpy.linspace(0, 2.0*math.pi, self.nsegments, endpoint=False):
+                ang += ang_offset
                 x = self.radius*math.cos(ang)
                 y = self.radius*math.sin(ang)
-                self.floors_p.append(numpy.array(x,y,z))
-                self.floors_m.append(numpy.array(x,y,-z))
+                layer.append(self.index((x,y,z)))
+            layers.append(layer)
 
-        print self.floors_p
-        ........
+        elements = list()
+        l1 = layers[0]
+        for l2 in layers[1:]:
+            ind1 = l1 + [l1[0]] # wrap
+            ind2 = l2 + [l2[0]] # around
+            l1 = l2             # for nex time
+            indices = [ind for pair in zip(ind1, ind2) for ind in pair]
+            while len(indices) >= 3:
+                tri = indices[:3]
+                elements.append(tri)
+                indices.pop(0)
+
+
+        points = list()
+        for count,(ind,pt) in enumerate(sorted(self.points.items())):
+            assert count == ind
+            points.append(pt)
+
+        return numpy.asarray(points), dict(triangle=numpy.asarray(elements))
                 
             
-            
+
             
 
 
