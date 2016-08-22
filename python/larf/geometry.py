@@ -232,7 +232,7 @@ class Cylinder(Geo):
         for l2 in layers[1:]:
             ind1 = l1 + [l1[0]] # wrap
             ind2 = l2 + [l2[0]] # around
-            l1 = l2             # for nex time
+            l1 = l2             # for next time
             indices = [ind for pair in zip(ind1, ind2) for ind in pair]
             flipflop = 1
             while len(indices) >= 3:
@@ -419,3 +419,54 @@ class CircularWirePlanes(GeoAggregate):
         self._geo_objects = planes
         return
     
+class CircularScreen(Geo):
+    def __init__(self, radius, offsetx, domain, lcar=None):
+        zcar = lcar or radius/10.0
+        nzseg = int(radius / zcar)
+        if nzseg%2:             # odd
+            nzseg += 1          # make even
+        zbounds = 2*nzseg*zcar
+        zs = numpy.linspace(-zbounds, zbounds, 2*nzseg+1)
+
+        ycar = zcar * math.cos(30*deg)
+        nyseg = int(radius/ycar)
+        if nyseg%2:
+            nyseg += 1
+        ybounds = 2*nyseg*ycar
+        ys = numpy.linspace(-ybounds, ybounds, 2*nzseg+1)
+
+        layers = list()
+        for ny, y in enumerate(ys):
+            zoff = 0.0
+            if ny%2:
+                zoff = zcar/2.0
+            layer = list()
+            for z in zs:
+                z += zoff
+                p = numpy.array((offsetx, y, z), dtype=float)
+                r = math.sqrt(y**2 + z**2)
+                ind = -1
+                if r <= radius:
+                    ind = self.index_grid_point(p)
+                layer.append((ind, p))
+            layers.append(layer)
+
+        elements = list()
+        l1 = layers[0]
+        for l2 in layers[1:]:
+            ind1 = l1 + [l1[0]] # wrap
+            ind2 = l2 + [l2[0]] # around
+            l1 = l2             # for next time
+            indexpoints = [ip for pair in zip(ind1, ind2) for ip in pair]
+            while len(indexpoints):
+                tri = indexpoints[:3]
+                indexpoints.pop(0)
+                if any([ip[0]<0 for ip in tri]):
+                    continue    # outside circle
+                elements.append([ip[0] for ip in tri])
+
+        self._elements = numpy.asarray(elements)
+        self._domains = numpy.asarray([domain]*len(elements))
+        return
+                
+            

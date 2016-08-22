@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from larf.geometry import Cylinder, CircularWirePlane, CircularWirePlanes
+from larf.geometry import Cylinder, CircularWirePlane, CircularWirePlanes, CircularScreen
 from larf.units import V
 import meshio
 import time
@@ -63,17 +63,20 @@ def voltage_weights(domains):
     for dom in domains:
         w = numpy.array((0.,0.,0.))
         weight.append(w)
-        if dom < 200:
+        if dom == 1:            # screen
+            voltage.append(546*V)
+            continue
+        if dom < 200:           # uplane
             voltage.append(-110*V)
             if dom == 110:
                 w[0] = 1
             continue
-        if dom < 300:
+        if dom < 300:           # vplane
             voltage.append(   0*V)
             if dom == 210:
                 w[1] = 1
             continue
-        if dom < 400:
+        if dom < 400:           # wplane
             voltage.append( 230*V)
             if dom == 310:
                 w[2] = 1
@@ -98,11 +101,18 @@ def test_planes():
     cell_data = dict(drift = v, uweight = w[0], vweight=w[1], wweight = w[2])
     write_file('planes', planes, **cell_data)
 
+def test_screen():
+    screen = CircularScreen(30, 0, 1, lcar=1.0)
+    v,w = voltage_weights(screen.grid_domains)
+    cell_data = dict(drift = v, uweight = w[0], vweight=w[1], wweight = w[2])
+    write_file('screen', screen, **cell_data)
+
     
 
 if '__main__' == __name__:
     #test_wire()
     #test_plane()
-    test_planes()
+    #test_planes()
+    test_screen()
 
     
