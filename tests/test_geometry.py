@@ -1,11 +1,16 @@
 #!/usr/bin/env python
 from larf.geometry import Cylinder, CircularWirePlane, CircularWirePlanes
+from larf.units import V
 import meshio
 import time
 import math
 import numpy
 
-def write_file(name, p, e, pd, cd, fd):
+
+def _write_file(name, p, e, pd=None, cd=None, fd=None):
+    pd = pd or dict()
+    cd = cd or dict()
+    fd = fd or dict()
 
     print 'points:',p.shape
     print 'elements:',len(e)
@@ -26,39 +31,72 @@ def write_file(name, p, e, pd, cd, fd):
         t2 = time.time()
         print 'wrote %s in %.1f seconds' % (fname, t2-t1)
 
+def write_file(name, obj, **cell_data):
+
+    for ext in ['msh','vtk']:
+        t1 = time.time()
+        fname = "test_geometry_%s.%s"%(name, ext)
+
+        print numpy.min(obj.grid_elements), numpy.max(obj.grid_elements)
+        print "points: ",obj.grid_points.shape
+
+        cd = dict(cell_data, domains=obj.grid_domains)
+        print "cell data:", obj.grid_elements.shape
+        for k,v in cd.items():
+            print "\t",k,v.shape
+        meshio.write(fname, obj.grid_points,
+                     dict(triangle=obj.grid_elements),
+                     cell_data = cd)
+        t2 = time.time()
+        print 'wrote %s in %.1f seconds' % (fname, t2-t1)
+
 def test_wire():
     angle = 60.*math.pi/180.
     direction = (0, math.cos(angle), math.sin(angle))
-    wire = Cylinder(.15, 3, center=(-3,-5,0), direction=direction, nsegments=7,
-                   point_data=dict(domain=42, potential=-110.0, weight=1.0))
+    wire = Cylinder(.15, 3, center=(-3,-5,0), direction=direction, domain=42, nsegments=7)
 
-    t1 = time.time()
-    p,e,pd,cd,fd = wire.surface_mesh
-    t2 = time.time()
-    print 'one wire in %.4f seconds' % (t2-t1,)
-    write_file('wire', p, e, pd, cd, fd)
+    write_file('wire', wire)
+
+def voltage_weights(domains):
+    voltage = list()
+    weight = list()
+    for dom in domains:
+        w = numpy.array((0.,0.,0.))
+        weight.append(w)
+        if dom < 200:
+            voltage.append(-110*V)
+            if dom == 110:
+                w[0] = 1
+            continue
+        if dom < 300:
+            voltage.append(   0*V)
+            if dom == 210:
+                w[1] = 1
+            continue
+        if dom < 400:
+            voltage.append( 230*V)
+            if dom == 310:
+                w[2] = 1
+            continue
+    voltage = numpy.asarray(voltage)
+    weight = numpy.asarray(weight).T.copy()
+    return voltage, weight
 
 def test_plane():
     t1 = time.time()
     plane = CircularWirePlane(30, 0.15, pitch=3.0, offset=1.5,
-                              domain_offset=100, point_data=dict(potential=230.))
-    p,e,pd,cd,fd = plane.surface_mesh
-    t2 = time.time()
-    print '%d wires in %.3f seconds' % (len(plane.wires), t2-t1)
-    write_file('plane', p, e, pd, cd, fd)    
+                              domain_offset=100)
+
+    v,w = voltage_weights(plane.grid_domains)
+    cell_data = dict(drift = v, uweight = w[0], vweight=w[1], wweight = w[2])
+    write_file('plane', plane, **cell_data)
 
 
 def test_planes():
-    t1 = time.time()
     planes = CircularWirePlanes(30, 0.15)
-    p,e,pd,cd,fd = planes.surface_mesh
-    t2 = time.time()
-
-    print 'three wire planes in %.3f seconds' % (t2-t1)
-    for plane in planes.planes:
-        print '\t%d wires' % len(plane.wires)
-
-    write_file('planes', p, e, pd, cd, fd)    
+    v,w = voltage_weights(planes.grid_domains)
+    cell_data = dict(drift = v, uweight = w[0], vweight=w[1], wweight = w[2])
+    write_file('planes', planes, **cell_data)
 
     
 

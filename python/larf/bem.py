@@ -12,6 +12,26 @@ def spaces(grid):
 
     return piecewise_const_space, piecewise_lin_space
 
+def grid(points, elements, domain_indices):
+    '''
+    Return a BEM++ grid objects made from the arrays.
+    '''
+    import bempp.api
+    #points, triangles = make_unique(numpy.asarray(points), numpy.asarray(triangles))
+    return bempp.api.grid_from_element_data(points.T, elements.T, domain_indices)
+    
+def gridfunction(grid, space, domainmap):
+    '''
+    Use domain map array to produce grid function.  
+    '''
+    if not type(domainmap) == dict:
+        domainmap = {d:v for d,v in domainmap} # unarrayify
+    coefficients = list()
+    for di in grid.leaf_view.domain_indices:
+        coefficients.append(domainmap[di])
+    return bempp.api.GridFunction(space, coefficients = coefficients)
+    
+
 def knobs(hmat_eps = None, hmat_mbs = None, gqo_near = None, gqo_medium = None, gqo_far = None, gqo_ds = None, **kwds):
     '''
     Set the BEM++ knobs that can be set.  This returns filtered kwds
