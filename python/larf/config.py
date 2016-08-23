@@ -21,10 +21,15 @@ def parse(file):
         ret[secname] = sec
     return ret
         
-def methods_params(cfg, section, methods=None, recurse_key = None, **kwds):
+def methods_params(cfg, section, methods=None, recurse_key = None, defaults = None, **overrides):
     sectype,secname = section.split(' ',1)
 
-    sec = dict(cfg[section])
+    if defaults:
+        sec = dict(defaults)
+    else:
+        sec = dict()
+    sec.update(cfg[section])
+    sec['secname'] = secname
 
     ret = list()
 
@@ -35,7 +40,7 @@ def methods_params(cfg, section, methods=None, recurse_key = None, **kwds):
     for pname in listify(extra):
         psec = cfg['params %s' % pname]
         sec.update(psec)
-    sec.update(kwds)
+    sec.update(overrides)
     sec = unit_eval(sec)
     ret +=  [(m,sec) for m in meths]
 
@@ -43,7 +48,7 @@ def methods_params(cfg, section, methods=None, recurse_key = None, **kwds):
     if recurse_key:
         recur = sec.pop(recurse_key, '')
         for daughter in listify(recur):
-            ret += methods_params(cfg, '%s %s' % (sectype, daughter), recurse_key=recurse_key, **kwds)
+            ret += methods_params(cfg, '%s %s' % (sectype, daughter), recurse_key=recurse_key, defaults = sec, **overrides)
 
     if not ret:
         raise KeyError, 'no methods to call for section "[%s]"' % section

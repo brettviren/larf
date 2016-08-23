@@ -48,6 +48,11 @@ class JSONBLOB(types.TypeDecorator):
 
 
 result_types = [
+    'wires',
+    'surface',
+
+    # obsoleted types below 
+
     'mesh',
     'boundary',
     'raster',
@@ -56,6 +61,32 @@ result_types = [
     'current',
     'waveform',
 ]
+
+array_types = [
+    'tuples',       # N_tuples X N_tuple_length.  List of tuples
+    'points',       # N_points X 3.  List of (x,y,z) points
+    'rays',         # N_rays X 6.  List of (x1,y1,z1, x2,y2,z2) endpoints
+    'indices',      # N_things X N_indices.  List of a group of indices into some other array
+
+
+    # obsolete types below
+
+    'wiregeo',      # n-tuple of information about wire geometry (domain,radius,*(endpt1),*(endptr2))
+
+    'triangles', # triplets of indices into associated points (N_triangles,3)
+    'ptscalar',  # boundary potential function coefficients defined on points (eg, dirichlet)
+    'elscalar',  # boundary potential function coefficients defined on elements (eg, neumann, domains)
+    'linspace',  # Array of arguments to numpy.linspace()
+    'mgrid',     # a numpy.meshgrid in 'ij' indexing (Ndim, n1, ..., n_Ndim)
+    'gscalar',   # scalar values defined on an associated mgrid (n1, ..., n_Ndim)
+    'gvector',   # components of vector values defined on associated mgrid (Ndim, n1, ..., n_Ndim)
+    'path',      # Ordered 4-space points (x,y,z,t) 
+    'pscalar',   # scalar value defined at points on path (N_path, N_step)
+    'ptuple',    # tuple of n values defined at points on paths (N_path, N_step, n)
+    'steps',     # (N_steps_in_path+1, 5) arrays holding 5-points (x,y,z,t,i) for i in N paths.
+    'waveforms', # (N_waveforms, N_ticks) arrays holding digitized quantity (current)
+]
+
 
 result_provenance = Table(
     "result_provenance", Base.metadata,
@@ -91,6 +122,21 @@ class Result(Base):
     def triplets(self):
         return [ (a.type,a.name,a.data) for a in self.arrays ]
 
+    def get_matching(self, type=None, name=None):
+        ret = list()
+        for t,n,a in self.triplets():
+            if type and name:
+                if t==type and n==name:
+                    ret.append(a)
+                continue
+            if type and type==t:
+                ret.append(a)
+                continue
+            if name and name==n:
+                ret.append(a)
+                continue
+        return ret
+
     def parent_by_type(self, type):
         for p in self.parents:
             if p.type == type:
@@ -101,22 +147,6 @@ class Result(Base):
                 return p
         
 
-array_types = [
-    'wiregeo',      # n-tuple of information about wire geometry (domain,radius,*(endpt1),*(endptr2))
-    'points',    # N-ordered points (x,y,z) in 3-space (N_points,3)
-    'triangles', # triplets of indices into associated points (N_triangles,3)
-    'ptscalar',  # boundary potential function coefficients defined on points (eg, dirichlet)
-    'elscalar',  # boundary potential function coefficients defined on elements (eg, neumann, domains)
-    'linspace',  # Array of arguments to numpy.linspace()
-    'mgrid',     # a numpy.meshgrid in 'ij' indexing (Ndim, n1, ..., n_Ndim)
-    'gscalar',   # scalar values defined on an associated mgrid (n1, ..., n_Ndim)
-    'gvector',   # components of vector values defined on associated mgrid (Ndim, n1, ..., n_Ndim)
-    'path',      # Ordered 4-space points (x,y,z,t) 
-    'pscalar',   # scalar value defined at points on path (N_path, N_step)
-    'ptuple',    # tuple of n values defined at points on paths (N_path, N_step, n)
-    'steps',     # (N_steps_in_path+1, 5) arrays holding 5-points (x,y,z,t,i) for i in N paths.
-    'waveforms', # (N_waveforms, N_ticks) arrays holding digitized quantity (current)
-]
 class Array(Base):
     __tablename__ = 'arrays'
 

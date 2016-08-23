@@ -8,20 +8,22 @@ This gets installed as the "larf" command.
 
 import click
 import numpy
+import pprint
 
-import larf.store
 from larf import units
-from larf.store import get_matching_results, get_derived_results
+from larf.models import Array, Result
+from larf.store import get_matching_results, get_derived_results, IntegrityError
+from larf.config import methods_params
+from larf.util import get_method, listify, unit_eval
 
 @click.group()
-@click.option('-c', '--config', default='larf.cfg', help = 'Set configuration file.')
-@click.option('-s', '--store', default='larf.db', help = 'Set data store file.')
+@click.option('-c', '--config', default=None, help = 'Set a configuration file.')
+@click.option('-s', '--store', default=None, help = 'Set data store file.')
 @click.option('-P', '--param', type=str, multiple=True,
               help='Set key=value overriding any from the configuration file')
 @click.pass_context
 def cli(ctx, config, store, param):
-    from larf.util import listify, unit_eval
-    import larf.solve
+    import larf.store
 
     params = dict()
     for p in listify(' '.join(param), delim=': '):
@@ -29,17 +31,16 @@ def cli(ctx, config, store, param):
         params[k] = v
 
     params = unit_eval(params)
-
     ctx.obj['params'] = params
 
-    import larf.config
     if config:
+        import larf.config
         ctx.obj['config_filename'] = config
         ctx.obj['cfg'] = larf.config.parse(config)
 
-    ctx.obj['store'] = store
-
-    ctx.obj['session'] = larf.store.session(store)
+    if store:
+        ctx.obj['store'] = store
+        ctx.obj['session'] = larf.store.session(store)
 
     #click.echo ("using larf store %s" % store)
     return
@@ -124,7 +125,7 @@ def cmd_config(ctx):
         print '\t%s: %s' % (sec, ', '.join(sorted(secs[sec])))
     
 
-@cli.command("corrupt")
+@cli.command("delete")
 @click.option("-r","--result-id", type=int, multiple=True,
               help="Focus on one result ID")
 @click.option("-n","--name", type=str, multiple=True,
@@ -161,7 +162,7 @@ def cmd_rm(ctx, result_id, name, type, remove_derived, keep_arrays):
     ses.execute("VACUUM")       # sqlite specific, actually make DB file smaller
     ses.commit()
 
-@cli.command("mv")
+@cli.command("rename")
 @click.option("-r","--result-id", type=int, 
               help="Result ID to rename")
 @click.argument("name")
@@ -204,8 +205,6 @@ def cmd_list(ctx, arrays, params, result_id, name, type, result_format, array_fo
 
     @todo: add different verbosity, filters.
     '''
-    from larf.models import Result
-    import pprint
 
     ses = ctx.obj['session']
     results = get_matching_results(ses, result_id, name, type)
@@ -257,8 +256,6 @@ def cmd_export(ctx, result_id, type, name, action, output):
     '''
     Export a result to a file.
     '''
-    from larf.models import Result
-    import larf.util
     import larf.persist
     from sqlalchemy import desc
 
@@ -297,7 +294,7 @@ def cmd_export(ctx, result_id, type, name, action, output):
             methname = "%s.%s_%s_%s" % (modname, action, rtype, oext)
             #print 'trying: %s' % methname
             try:
-                meth = larf.util.get_method(methname)
+                meth = get_method(methname)
             except AttributeError:
                 continue
             meth(res, output, **kwd)
@@ -307,20 +304,129 @@ def cmd_export(ctx, result_id, type, name, action, output):
     return 1
     
 
+def get_config(ctx):
+    '''
+    Return cfg from ctx or handle missing
+    '''
+    try:
+        return ctx.obj['cfg']
+    except KeyError:
+        raise click.UsageError("need a configuration file.  See global '-c/--config' option.")
+
+def get_session(ctx):
+    '''
+    Return session from ctx or handle missing
+    '''
+    try:
+        return ctx.obj['session']
+    except KeyError:
+        raise click.UsageError("need a storage specifier.  See global '-s/--store' option.")
 
 
-@cli.command("import")
-@click.argument('filename')
-@click.pass_context
-def cmd_import(ctx, filename):
-    "not yet implemented"
-    click.echo("please implement me!")
+def config_call(ctx, sectype, secname, resname, recurse_key = None, parents = None):
+    '''Do a configuration file driven call and return the results.
+
+    The methods must match:
+
+        meth(**params)
+
+    and should return an model.Array or a list of them.
+
+    The 'parents' parameter will hold a collection of model.Result
+    objects which should consider be the input to the method.
+    '''
+    if not secname:
+        secname = resname
+    parents = parents or list()
+
+    cfg = get_config(ctx)
+    par = ctx.obj['params']
+    tocall = methods_params(cfg, '%s %s' % (sectype, secname), recurse_key = recurse_key)
+    calls = list()
+    arrays = list()
+    for methname, params in tocall:
+        meth = get_method(methname)
+        params.update(**par)
+        calls.append(dict(method=methname, params=params))
+        arrs = meth(parents=parents, **params) # call configure driven method
+        if type(arrs) == Array:                # singular
+            arrs = [arrs]
+        arrays += arrs
+    return Result(name=resname, type=sectype, params = calls, arrays = arrays, parents = parents)
+
+def save_result(ctx, results):
+    '''
+    Save result to store.
+    '''
+    if type(results) == Result:
+        results = [results]
+
+    ses = get_session(ctx)
+    for result in results:
+        ses.add(result)
+        try:
+            ses.flush()
+        except IntegrityError:
+            click.echo("Incompatible result: type:%s name:%s with %d arrays:" % \
+                       (result.type, result.name, len(result.arrays)))
+            for typ,nam,arr in result.triplets():
+                click.echo("\tarray type:%s name:%s shape:%s" % (typ, nam, arr.shape))
+            click.echo("Parameters:")
+            click.echo(pprint.pformat(result.params))
+            raise
+        ses.commit()
+        click.echo('id:%d type:%s name:%s narrays:%d' % (result.id, result.type, result.name, len(result.arrays)))
     return
 
+def save_result_parts(ctx, type, name, params, arrays):
+    '''
+    Save pack parts into a result and save to store.
+    '''
+    res = Result(name=name, type=type, params = params, arrays = arrays)
+    save_result(ctx, res)
 
 
-def announce_result(type, res):
-    click.echo('%s result id %d' % (type, res.id))
+def get_result(ctx, type, ident=None):
+    '''
+    Return result of type matching ident (name, ID or None)
+    '''
+    # fixme: go back through result history to find match
+    from larf.store import result_typed
+    ses = get_session(ctx)
+    res = result_typed(ses, type, ident)
+    if not res:
+        raise click.UsageError('no result of type "%s" matching "%s" in store "%s", try "list" command' % \
+                               (type, ident, ctx.obj['store']))
+    return res
+
+
+@cli.command("wires")
+@click.option('-s','--section', default=None,
+              help='The "[wires]" configuration file section.')
+@click.argument('name')
+@click.pass_context
+def cmd_wires(ctx, section, name):
+    '''
+    Generate wire planes.
+    '''
+    # eg: larf.wires.circular
+    res = config_call(ctx, 'wires', section, name, 'wires', parents=None)
+    save_result(ctx, res)
+
+@cli.command("surface")
+@click.option('-s','--section', default=None,
+              help='The "[grid]" configuration file section.')
+@click.option('-w', '--wires', default=None, metavar="<result>",
+              help='The "wires" RESULT to use (id or name, default=use most recent).')
+@click.argument('name')
+@click.pass_context
+def cmd_surface(ctx, section, wires, name):
+    '''
+    Generate surface from wires
+    '''
+    wres = get_result(ctx, 'wires', wires)
+    gres = config_call(ctx, 'surface', section, name, 'surfaces', parents=[wres])
+    save_result(ctx, gres)
 
 
 
@@ -340,7 +446,6 @@ def cmd_mesh(ctx, mesh, name):
     the one with the same name as supplied for the result is tried.
 
     '''
-    import larf.config
     import larf.util
     from larf.models import Array, Result
 

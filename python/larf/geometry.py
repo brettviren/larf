@@ -344,77 +344,51 @@ class GeoAggregate(Geo):
                 return True
         return False
                 
-class CircularWirePlane(GeoAggregate):
+class Aggregate(GeoAggregate):
+    def __init__(self, geos):
+        self._geo_objects = geos
+
+
+class WirePlane(GeoAggregate):
     '''
     Produce a plane of cylindrical wires which are bounded by a circle
     '''
-    def __init__(self, bounds_radius, wire_radius,
-                 pitch = 3*mm,  # distance perpendicular between wires
-                 angle = 0*deg, # angle of wires w.r.t Z axis
-                 offset = 0.0,  # offset in pitch direction
-                 centerx = 0.0, # where the center of the plane is in X
-                 domain_offset=0, # count domains
+    def __init__(self, radius, rays,
+                 domain_offset=0,
                  nsegments=6,   # wire cross section
-                 lcar=None):    # characteristic length
-
-        wdir = numpy.asarray((0., math.sin(angle), math.cos(angle)))
-        pdir = numpy.asarray((0., math.cos(angle), -math.sin(angle)))
-        voff = numpy.asarray((centerx, 0., 0.))
-        
-        # first make the wires at x=0 in the YZ plane
-        nwires = int(2*bounds_radius/pitch)
-        if 0 == nwires%2:
-            nwires += 1         # force odd
-
-        y1 = -bounds_radius
-        y2 =  bounds_radius
-        endpoint = True
-        if offset:              # pushes one off the plane
-            y1 += offset
-            y2 += offset
-            nwires -= 1
-            endpoint = False
-
-        central_wire = int(nwires//2)
-            
+                 lcar=None,     # characteristic length
+                 **kwds):
         wires = list()
-        ls = numpy.linspace(y1, y2, nwires, endpoint=endpoint)
-        for count, along_pitch in enumerate(ls):
-            height = math.sqrt(bounds_radius**2 - along_pitch**2)
-            if height == 0.0:
+        count = 0;
+        for ray in rays:
+            t,h = ray
+            v = h-t
+            m = math.sqrt(numpy.dot(v,v))
+            if m <= 0.0:
                 continue
-            center = voff + pdir*along_pitch
-            domain = domain_offset + count
-            cyl = Cylinder(wire_radius, height, center, wdir,
-                           domain, nsegments, lcar)
 
+            direction = v/m
+            hheight = 0.5*m
+            center = 0.5*(t+h)
+            domain = domain_offset + count
+            count += 1
+            cyl = Cylinder(radius, hheight, center, direction, domain, nsegments, lcar)
             wires.append(cyl)
 
         self._geo_objects = wires
         
 
-class CircularWirePlanes(GeoAggregate):
-    def __init__(self,
-                 bounds_radius, wire_radius,
-                 planex = (3*mm,0,-3*mm),
-                 pitch = 3*mm,  # distance perpendicular between wires
-                 angle = (60*deg, -60*deg, 0), # angle of wires w.r.t Z axis
-                 offset = (0., 0., 1.5*mm),  # offset in pitch direction
+class WirePlanes(GeoAggregate):
+    def __init__(self, wire_radius, wire_planes,
                  domain_offsets = (100, 200, 300),
                  nsegments=6,   # wire cross section
-                 lcar=None):    # characteristic length
-
+                 lcar=None,     # characteristic length
+                 **kwds):
 
         planes = list()
-        for x,ang,off,dof in zip(planex, angle, offset, domain_offsets):
-            plane = CircularWirePlane(bounds_radius, wire_radius,
-                                      pitch = pitch,
-                                      angle = ang,
-                                      offset = off,
-                                      centerx = x,
-                                      domain_offset = dof,
-                                      nsegments = nsegments,
-                                      lcar = lcar)
+        for wire_rays, domain_offset in zip(wire_planes, domain_offsets):
+            plane = WirePlane(wire_radius, wire_rays,
+                              domain_offset, nsegments, lcar)
             planes.append(plane)
         self._geo_objects = planes
         return
@@ -426,20 +400,22 @@ class CircularScreen(Geo):
         if nzseg%2:             # odd
             nzseg += 1          # make even
         zbounds = 2*nzseg*zcar
-        zs = numpy.linspace(-zbounds, zbounds, 2*nzseg+1)
+        zs = numpy.linspace(-zbounds, zbounds, 2*nzseg+1, endpoint=True)
+        zstep = zs[1] - zs[0]
 
         ycar = zcar * math.cos(30*deg)
         nyseg = int(radius/ycar)
         if nyseg%2:
             nyseg += 1
         ybounds = 2*nyseg*ycar
-        ys = numpy.linspace(-ybounds, ybounds, 2*nzseg+1)
+        ys = numpy.linspace(-ybounds, ybounds, 2*nzseg+1, endpoint=True)
+        ystep = ys[1] - ys[0]
 
         layers = list()
         for ny, y in enumerate(ys):
             zoff = 0.0
-            if ny%2:
-                zoff = zcar/2.0
+            if 0 == ny%2:
+                zoff = zstep/2.0
             layer = list()
             for z in zs:
                 z += zoff
@@ -453,11 +429,13 @@ class CircularScreen(Geo):
 
         elements = list()
         l1 = layers[0]
-        for l2 in layers[1:]:
-            ind1 = l1 + [l1[0]] # wrap
-            ind2 = l2 + [l2[0]] # around
+        for count,l2 in enumerate(layers[1:]):
+            if 1 == count%2:
+                indexpoints = [ip for pair in zip(l1, l2) for ip in pair]
+            else:
+                indexpoints = [ip for pair in zip(l2, l1) for ip in pair]
             l1 = l2             # for next time
-            indexpoints = [ip for pair in zip(ind1, ind2) for ip in pair]
+
             while len(indexpoints):
                 tri = indexpoints[:3]
                 indexpoints.pop(0)

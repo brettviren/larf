@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-from larf.geometry import Cylinder, CircularWirePlane, CircularWirePlanes, CircularScreen
-from larf.units import V
+from larf.geometry import Cylinder, WirePlane, WirePlanes, CircularScreen, Aggregate
+from larf.wireplanes import circular_plane
+from larf.units import V, deg
 import meshio
 import time
 import math
@@ -37,7 +38,7 @@ def write_file(name, obj, **cell_data):
         t1 = time.time()
         fname = "test_geometry_%s.%s"%(name, ext)
 
-        print numpy.min(obj.grid_elements), numpy.max(obj.grid_elements)
+        print 'min/max elements:', numpy.min(obj.grid_elements), numpy.max(obj.grid_elements)
         print "points: ",obj.grid_points.shape
 
         cd = dict(cell_data, domains=obj.grid_domains)
@@ -50,11 +51,15 @@ def write_file(name, obj, **cell_data):
         t2 = time.time()
         print 'wrote %s in %.1f seconds' % (fname, t2-t1)
 
+def test_rays():
+    rays = circular_plane(10, pitch=3.0, offset=1.5, centerx=-3.0)
+    assert len(rays)
+    return
+
 def test_wire():
     angle = 60.*math.pi/180.
     direction = (0, math.cos(angle), math.sin(angle))
     wire = Cylinder(.15, 3, center=(-3,-5,0), direction=direction, domain=42, nsegments=7)
-
     write_file('wire', wire)
 
 def voltage_weights(domains):
@@ -85,18 +90,28 @@ def voltage_weights(domains):
     weight = numpy.asarray(weight).T.copy()
     return voltage, weight
 
-def test_plane():
-    t1 = time.time()
-    plane = CircularWirePlane(30, 0.15, pitch=3.0, offset=1.5,
-                              domain_offset=100)
 
+def test_plane():
+    rays = circular_plane(2*30, pitch=3.0, offset=1.5, centerx=-3.0)
+    plane = WirePlane(radius=0.15, rays=rays, domain_offset=100)
     v,w = voltage_weights(plane.grid_domains)
     cell_data = dict(drift = v, uweight = w[0], vweight=w[1], wweight = w[2])
     write_file('plane', plane, **cell_data)
 
 
+def three_plane_rays():
+    dia = 2*30.
+    rays = [
+        circular_plane(dia, angle=+60*deg, pitch=3.0, offset=0.0, centerx=+3.0),
+        circular_plane(dia, angle=-60*deg, pitch=3.0, offset=0.0, centerx= 0.0),
+        circular_plane(dia, angle=  0*deg, pitch=3.0, offset=1.5, centerx=-3.0),
+        ]
+    return rays
+
 def test_planes():
-    planes = CircularWirePlanes(30, 0.15)
+
+    rays = three_plane_rays()
+    planes = WirePlanes(0.15, rays)
     v,w = voltage_weights(planes.grid_domains)
     cell_data = dict(drift = v, uweight = w[0], vweight=w[1], wweight = w[2])
     write_file('planes', planes, **cell_data)
@@ -107,12 +122,21 @@ def test_screen():
     cell_data = dict(drift = v, uweight = w[0], vweight=w[1], wweight = w[2])
     write_file('screen', screen, **cell_data)
 
+def test_full():    
+    rays = three_plane_rays()
+    planes = WirePlanes(0.15, rays)
+    screen = CircularScreen(60, 40, 1, 1)
+
+    both = Aggregate([planes, screen])
+    v,w = voltage_weights(both.grid_domains)
+    cell_data = dict(drift = v, uweight = w[0], vweight=w[1], wweight = w[2])
+    write_file('full', both, **cell_data)
     
+
 
 if '__main__' == __name__:
     #test_wire()
+    #test_rays()
     #test_plane()
     #test_planes()
-    test_screen()
-
-    
+    test_full()

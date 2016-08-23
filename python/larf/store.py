@@ -8,6 +8,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import desc
 import larf.models
 
+import sqlalchemy.exc
+IntegrityError = sqlalchemy.exc.IntegrityError
 
 def session(database = 'sqlite:///:memory:'):
     if not database or database.lower() == 'none' or database.lower() == "memory":
