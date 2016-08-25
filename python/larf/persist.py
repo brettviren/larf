@@ -86,24 +86,6 @@ def save_volume_vtk(result, outfile, **kwds):
     write_data(pd, outfile)
     return
 
-def save_evaluate_vtk(result, outfile, **kwds):
-    '''
-    Save a evaluation result to a VTK file.
-    '''
-    from tvtk.api import tvtk, write_data
-
-    points = result.parent_by_type('volume').array_data_by_type()['points']
-
-    pot = result.array_data_by_type()['scalar']
-    pd = tvtk.PolyData(points = points)
-    pd.point_data.scalars = pot.T
-    pd.point_data.scalars.name = result.name
-    write_data(pd, outfile)
-    return
-
-
-
-
 def save_boundary_vtk(result, outfile, **kwds):
     from tvtk.api import tvtk, write_data
 
