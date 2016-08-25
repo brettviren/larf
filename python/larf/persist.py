@@ -55,6 +55,83 @@ def _save_mgrid_vtk(result, outfile, **kwds):
 save_raster_vtk = _save_mgrid_vtk
 save_velocity_vtk = _save_mgrid_vtk
 
+def save_surface_vtk(result, outfile, **kwds):
+    '''
+    Save a surface result to a VTK file.
+    '''
+    from tvtk.api import tvtk, write_data
+    arrs = result.array_data_by_name()
+    points = arrs['vertices']
+    triangles = arrs['elements']
+    domains = arrs['domains']
+
+    pd = tvtk.PolyData()
+    pd.points = points
+    pd.polys = triangles
+
+    pd.cell_data.scalars = domains
+    pd.cell_data.scalars.name = "domains"
+
+    write_data(pd, outfile)
+    return
+
+def save_volume_vtk(result, outfile, **kwds):
+    '''
+    Save a volume result to a VTK file.
+    '''
+    from tvtk.api import tvtk, write_data
+    arrs = result.array_data_by_name()
+    pd = tvtk.PolyData()
+    pd.points = arrs['volume']
+    write_data(pd, outfile)
+    return
+
+def save_evaluate_vtk(result, outfile, **kwds):
+    '''
+    Save a evaluation result to a VTK file.
+    '''
+    from tvtk.api import tvtk, write_data
+
+    points = result.parent_by_type('volume').array_data_by_type()['points']
+
+    pot = result.array_data_by_type()['scalar']
+    pd = tvtk.PolyData(points = points)
+    pd.point_data.scalars = pot.T
+    pd.point_data.scalars.name = result.name
+    write_data(pd, outfile)
+    return
+
+
+
+
+def save_boundary_vtk(result, outfile, **kwds):
+    from tvtk.api import tvtk, write_data
+
+    sres = result.parents[0]
+    sarrs = sres.array_data_by_name()
+    points = sarrs['vertices']
+    triangles = sarrs['elements']
+    domains = sarrs['domains']
+
+    barrs = result.array_data_by_name()    
+
+    pd = tvtk.PolyData()
+    pd.points = points
+    pd.polys = triangles
+
+    pd.cell_data.add_array(domains)
+    pd.cell_data.get_array(0).name = 'domains'
+
+    for count, name in enumerate(['dirichlet', 'neumann']):
+        pd.cell_data.add_array(barrs[name])
+        pd.cell_data.get_array(count + 1).name = name
+
+    write_data(pd, outfile)
+    return
+
+
+
+
 def save_mesh_vtk(result, outfile, **kwds):
     '''
     Save a mesh result to a VTK file.
@@ -76,7 +153,8 @@ def save_mesh_vtk(result, outfile, **kwds):
     write_data(pd, outfile)
     return
 
-def save_boundary_vtk(result, outfile, **kwds):
+
+def save_oldboundary_vtk(result, outfile, **kwds):
     from tvtk.api import tvtk
     from tvtk.api import write_data
 

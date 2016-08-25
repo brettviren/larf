@@ -1,3 +1,4 @@
+import numpy
 import bempp.api
 
 def spaces(grid):
@@ -12,14 +13,34 @@ def spaces(grid):
 
     return piecewise_const_space, piecewise_lin_space
 
+
+def make_unique(pts, tris):
+    '''
+    Make new points and triangles arrays which remove any points not
+    referenced by triangles.
+    '''
+    unqind = sorted(list(set(tris.ravel().tolist())))
+    newpts = list()
+    indmap = dict()
+    for oldind in unqind:
+        indmap[oldind] = len(newpts)
+        newpts.append(pts[oldind])
+    newtris = list()
+    for tri in tris:
+        newtri = numpy.asarray([indmap[ind] for ind in tri])
+        newtris.append(newtri)
+    return numpy.asarray(newpts), numpy.asarray(newtris)
+
 def grid(points, elements, domain_indices):
     '''
     Return a BEM++ grid objects made from the arrays.
     '''
-    import bempp.api
-    #points, triangles = make_unique(numpy.asarray(points), numpy.asarray(triangles))
+    assert points.shape[1] == 3
+    assert len(elements) == len(domain_indices)
+    points, elements = make_unique(points, elements)
     return bempp.api.grid_from_element_data(points.T, elements.T, domain_indices)
     
+
 def gridfunction(grid, space, domainmap):
     '''
     Use domain map array to produce grid function.  

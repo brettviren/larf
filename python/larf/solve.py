@@ -53,9 +53,7 @@ def boundary_functions(grid, boundary_potential):
     t6 = now()
     print '\tin %.1f sec' % (t6-t5)
 
-    return [('elscalar', 'dirichlet', dirichlet_fun.coefficients),
-            ('elscalar', 'solution', sol.coefficients),
-            ('pscalar', 'residuals', np.asarray(residuals))]
+    return [dirichlet_fun.coefficients, sol.coefficients]
 
 
 def boundary_functions_old(grid, boundary_potential):

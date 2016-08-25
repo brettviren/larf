@@ -53,7 +53,7 @@ def build_circular(diameter = 40*mm, # the diameter of the plane
 
 
 def circular(**params):
-    print 'circular:', params.keys()
+    #print 'circular:', params.keys()
     from larf.models import Result, Array
     rays = build_circular(**params)
     aname = params.get('planeid') or params.get('secname')

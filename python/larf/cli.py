@@ -13,8 +13,8 @@ import pprint
 from larf import units
 from larf.models import Array, Result
 from larf.store import get_matching_results, get_derived_results, IntegrityError
-from larf.config import methods_params
 from larf.util import get_method, listify, unit_eval
+from larf.clihelpers import get_config, get_session, config_call, save_result, get_result
 
 @click.group()
 @click.option('-c', '--config', default=None, help = 'Set a configuration file.')
@@ -303,130 +303,102 @@ def cmd_export(ctx, result_id, type, name, action, output):
     click.echo('No handler in %s for format "%s" for result #%d <%s>%s' % (modname, ext, res.id, res.type, res.name))
     return 1
     
-
-def get_config(ctx):
-    '''
-    Return cfg from ctx or handle missing
-    '''
-    try:
-        return ctx.obj['cfg']
-    except KeyError:
-        raise click.UsageError("need a configuration file.  See global '-c/--config' option.")
-
-def get_session(ctx):
-    '''
-    Return session from ctx or handle missing
-    '''
-    try:
-        return ctx.obj['session']
-    except KeyError:
-        raise click.UsageError("need a storage specifier.  See global '-s/--store' option.")
-
-
-def config_call(ctx, sectype, secname, resname, recurse_key = None, parents = None):
-    '''Do a configuration file driven call and return the results.
-
-    The methods must match:
-
-        meth(**params)
-
-    and should return an model.Array or a list of them.
-
-    The 'parents' parameter will hold a collection of model.Result
-    objects which should consider be the input to the method.
-    '''
-    if not secname:
-        secname = resname
-    parents = parents or list()
-
-    cfg = get_config(ctx)
-    par = ctx.obj['params']
-    tocall = methods_params(cfg, '%s %s' % (sectype, secname), recurse_key = recurse_key)
-    calls = list()
-    arrays = list()
-    for methname, params in tocall:
-        meth = get_method(methname)
-        params.update(**par)
-        calls.append(dict(method=methname, params=params))
-        arrs = meth(parents=parents, **params) # call configure driven method
-        if type(arrs) == Array:                # singular
-            arrs = [arrs]
-        arrays += arrs
-    return Result(name=resname, type=sectype, params = calls, arrays = arrays, parents = parents)
-
-def save_result(ctx, results):
-    '''
-    Save result to store.
-    '''
-    if type(results) == Result:
-        results = [results]
-
-    ses = get_session(ctx)
-    for result in results:
-        ses.add(result)
-        try:
-            ses.flush()
-        except IntegrityError:
-            click.echo("Incompatible result: type:%s name:%s with %d arrays:" % \
-                       (result.type, result.name, len(result.arrays)))
-            for typ,nam,arr in result.triplets():
-                click.echo("\tarray type:%s name:%s shape:%s" % (typ, nam, arr.shape))
-            click.echo("Parameters:")
-            click.echo(pprint.pformat(result.params))
-            raise
-        ses.commit()
-        click.echo('id:%d type:%s name:%s narrays:%d' % (result.id, result.type, result.name, len(result.arrays)))
-    return
-
-def save_result_parts(ctx, type, name, params, arrays):
-    '''
-    Save pack parts into a result and save to store.
-    '''
-    res = Result(name=name, type=type, params = params, arrays = arrays)
-    save_result(ctx, res)
-
-
-def get_result(ctx, type, ident=None):
-    '''
-    Return result of type matching ident (name, ID or None)
-    '''
-    # fixme: go back through result history to find match
-    from larf.store import result_typed
-    ses = get_session(ctx)
-    res = result_typed(ses, type, ident)
-    if not res:
-        raise click.UsageError('no result of type "%s" matching "%s" in store "%s", try "list" command' % \
-                               (type, ident, ctx.obj['store']))
-    return res
-
-
 @cli.command("wires")
-@click.option('-s','--section', default=None,
+@click.option('-w','--wires', default=None,
               help='The "[wires]" configuration file section.')
 @click.argument('name')
 @click.pass_context
-def cmd_wires(ctx, section, name):
+def cmd_wires(ctx, wires, name):
     '''
     Generate wire planes.
     '''
     # eg: larf.wires.circular
-    res = config_call(ctx, 'wires', section, name, 'wires', parents=None)
+    res = config_call(ctx, 'wires', wires, name, 'wires', parents=None)
     save_result(ctx, res)
 
 @cli.command("surface")
-@click.option('-s','--section', default=None,
-              help='The "[grid]" configuration file section.')
+@click.option('-s','--surface', default=None,
+              help='The "[surface]" configuration file section.')
 @click.option('-w', '--wires', default=None, metavar="<result>",
               help='The "wires" RESULT to use (id or name, default=use most recent).')
 @click.argument('name')
 @click.pass_context
-def cmd_surface(ctx, section, wires, name):
+def cmd_surface(ctx, surface, wires, name):
     '''
     Generate surface from wires
     '''
+    from larf.surface import combine_arrays
     wres = get_result(ctx, 'wires', wires)
-    gres = config_call(ctx, 'surface', section, name, 'surfaces', parents=[wres])
-    save_result(ctx, gres)
+    # eg larf.surface.wireplanes
+    sres = config_call(ctx, 'surface', surface, name, 'surfaces', parents=[wres], combine=combine_arrays)
+    save_result(ctx, sres)
+    return
+
+@cli.command("volume")
+@click.option('-v','--volume', default=None,
+              help='The "[volume]" configuration file section.')
+@click.option('-w', '--wires', default=None, metavar="<result>",
+              help='The "wires" RESULT to use (id or name, default=use most recent).')
+@click.argument('name')
+@click.pass_context
+def cmd_volume(ctx, volume, wires, name):
+    '''
+    Generate points in a volume.
+    '''
+    from larf.volume import combine_arrays
+    wres = get_result(ctx, 'wires', wires)
+    # eg larf.volume.wireplanes
+    vres = config_call(ctx, 'volume', volume, name, 'volumes', parents=[wres], combine=combine_arrays)
+    save_result(ctx, vres)
+    return
+
+
+
+@cli.command("boundary")
+@click.option('-b', '--boundary',
+              help='The "[boundary]" configuration file section.')
+@click.option('-s', '--surface', default=None, metavar="<result>",
+              help='The "surface" result to use (id or name, default=use most recent).')
+@click.argument('name')
+@click.pass_context
+def cmd_boundary(ctx, boundary, surface, name):
+    '''
+    Produce grid function coefficients for the boundary conditions at the associated surface.
+    '''
+    sres = get_result(ctx, 'surface', surface)
+    # eg larf.boundary.scalar
+    bres = config_call(ctx, "boundary", boundary, name, parents=[sres])
+    save_result(ctx, bres)
+    return
+
+
+@cli.command("evaluate")
+@click.option('-e', '--evaluate',
+              help='The "[evaluate]" configuration file section.')
+@click.option('-b', '--boundary', default=None, metavar="<result>",
+              help='The "boundary" result to use (id or name, default=use most recent).')
+@click.option('-v', '--volume', default=None, metavar="<result>", multiple=True,
+              help='The "volume" result(s) to use (id or name, default=use most recent).')
+@click.argument('name')
+@click.pass_context
+def cmd_evaluate(ctx, evaluate, boundary, volume, name):
+    '''
+    Produce grid function coefficients for the boundary conditions at the associated surface.
+    '''
+    bres = get_result(ctx, 'boundary', boundary)
+    vreses = list()
+    for vol in volume:
+        vres = get_result(ctx, 'volume', vol)
+        vreses.append(vres)
+
+    # eg larf.evaluate.scalar
+    eres = config_call(ctx, "evaluate", evaluate, name, parents=[bres]+vreses)
+    save_result(ctx, eres)
+    return
+
+
+
+
 
 
 
@@ -509,14 +481,14 @@ def cmd_mesh(ctx, mesh, name):
 
 
 
-@cli.command("boundary")
+@cli.command("oldboundary")
 @click.option('-b', '--boundary',
               help='The "[boundary]" configuration file section.')
 @click.option('-m', '--mesh', default=None,
               help='The "mesh" result to use (id or name, default=use most recent).')
 @click.argument('name')
 @click.pass_context
-def cmd_boundary(ctx, boundary, mesh, name):
+def cmd_oldboundary(ctx, boundary, mesh, name):
     '''
     Solve surface boundary potentials.
     '''

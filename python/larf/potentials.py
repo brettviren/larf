@@ -41,9 +41,9 @@ class drift(object):
         res = self.dvm.get(index, None)
         if res is None:
             self.unknown[index] += 1
-            print 'Unknown domain: %d' % index
+            raise ValueError('Drift potential setting: unknown domain: %d' % index)
             return
-
+        res = numpy.interp(r[0], *res)
         result[0] = res
         self.nset += 1
         self.counts[index] += 1

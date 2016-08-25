@@ -29,6 +29,7 @@ def methods_params(cfg, section, methods=None, recurse_key = None, defaults = No
     else:
         sec = dict()
     sec.update(cfg[section])
+    sec['sectype'] = sectype
     sec['secname'] = secname
 
     ret = list()

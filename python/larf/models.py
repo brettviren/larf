@@ -50,12 +50,14 @@ class JSONBLOB(types.TypeDecorator):
 result_types = [
     'wires',
     'surface',
-
+    'boundary',
+    'volume',
+    'evaluate',
+    
     # obsoleted types below 
 
-    'mesh',
-    'boundary',
     'raster',
+    'mesh',
     'velocity',                 # fixme: just make raster?
     'stepping',
     'current',
@@ -66,8 +68,8 @@ array_types = [
     'tuples',       # N_tuples X N_tuple_length.  List of tuples
     'points',       # N_points X 3.  List of (x,y,z) points
     'rays',         # N_rays X 6.  List of (x1,y1,z1, x2,y2,z2) endpoints
-    'indices',      # N_things X N_indices.  List of a group of indices into some other array
-
+    'indices',      # N_groups X N_groupsize.  Indices into some other array, in fixed sized groups
+    'scalar',       # N_scalars.  One scalar value per something (eg, per point)
 
     # obsolete types below
 
