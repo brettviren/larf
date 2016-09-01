@@ -8,9 +8,10 @@ import math
 import numpy
 from larf.units import um, mm, deg
 
+# U/V/W are -30/-150/-90
 def build_circular(diameter = 40*mm, # the diameter of the plane
                    pitch = 3*mm,  # distance perpendicular between wires
-                   angle = 0*deg, # angle of wires w.r.t Z axis
+                   angle = 0*deg, # angle of wires w.r.t Z axis so that pitch points in positive Z direction
                    offset = 0.0,  # offset in pitch direction
                    centerx = 0.0, # where the center of the plane is in X
                    **kwds):

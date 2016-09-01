@@ -13,7 +13,10 @@ step_res_id = sys.argv[2]
 outname = sys.argv[3]
 
 ses = larf.store.session(dbfile)
-sres = larf.store.result_typed(ses, 'stepping', step_res_id)
+
+#result_type = 'stepping'
+result_type = 'drift'
+sres = larf.store.result_typed(ses, result_type, step_res_id)
 
     
 with PdfPages('%s.pdf' % outname) as pdf:

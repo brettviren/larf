@@ -59,7 +59,9 @@ def config_call(ctx, sectype, secname, resname, recurse_key = None, parents = No
         if type(arrs) == Array:                # singular
             arrs = [arrs]
         arrays.append(arrs)
-    arrays = combine(*arrays)
+    if combine:
+        arrays = combine(*arrays)
+    #print arrays
     return Result(name=resname, type=sectype, params = calls, arrays = arrays, parents = parents)
 
 

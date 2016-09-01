@@ -5,8 +5,9 @@ import larf.store
 from larf.units import us, mm
 import matplotlib.pyplot as plt
 import matplotlib
+from matplotlib.backends.backend_pdf import PdfPages
 
-matplotlib.rcParams.update({'font.size': 4})
+#matplotlib.rcParams.update({'font.size': 4})
 
 dbfile = sys.argv[1]
 cur_res_id = sys.argv[2]
@@ -16,32 +17,34 @@ ses = larf.store.session(dbfile)
 cres = larf.store.result_typed(ses, 'current', cur_res_id)
 currents = cres.array_data_by_name()
 
-sres = cres.parent_by_type('stepping')
+sres = cres.parent_by_type('drift')
+bres = cres.parent_by_type('boundary')
+bname = bres.name
+
+with PdfPages('%s.pdf' % outname) as pdf:
+
+    for stype,sname,sarr in sres.triplets():
+        if stype != 'path':
+            continue
+        print stype,sname
+
+        fig, axes = plt.subplots(nrows=1, ncols=1, sharex=True)
+        stringargs = tuple([str(bname)] + list(sarr[0,:3]/mm))
+        fig.suptitle('Current for %s (%.1f, %.1f, %.1f) mm' % stringargs)
+
+        current = currents[sname] * 1e-6
+        time = sarr[:,3] / us
+
+        a = axes
+
+        a.plot(time, current)
+        a.set_ylabel('current')
+        a.set_xlabel('time [us]')
 
 
-nrows = ncols = 3
-fig, axes = plt.subplots(nrows=nrows, ncols=ncols, sharex=True)
+        pdf.savefig()
+        plt.close()
 
-
-for stype,sname,sarr in sres.triplets():
-    if stype != 'path':
-        continue
-    print stype,sname
-
-    current = currents[sname] * 1e-6
-    time = sarr[:,3] / us
-
-    x0 = sarr[0,0]
-    y0 = sarr[0,1]
-    z0 = sarr[0,2]
-
-    iy = int(round((1*mm+y0)/(1*mm)))
-    iz = int(round((1*mm+z0)/(1*mm)))
-
-    a = axes[iy,iz]
-
-    a.plot(time, current)
-plt.savefig(outname +"-cur.pdf", dpi=300)
 
 # for pname, path in paths.items():
 #     current=currents[pname]

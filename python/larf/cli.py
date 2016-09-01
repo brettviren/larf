@@ -99,6 +99,7 @@ def dump_grid(g):
         print ('\t%d: %d %s' % (ind, g.leaf_view.entity_count(ind), thing))
 
 
+
 @cli.command("config")
 @click.pass_context
 def cmd_config(ctx):
@@ -181,6 +182,27 @@ def cmd_mv(ctx, result_id, name):
         ses.add(r)
     ses.commit()
 
+
+
+@cli.command("has")
+@click.option("-r","--result-id", type=int, multiple=True,
+              help="Check if we have matching result by ID")
+@click.option("-n","--name", type=str, multiple=True,
+              help="Check if we have matching result by name")
+@click.option("-t","--type", type=str, multiple=True,
+              help="Check if we have matching result by type")
+@click.pass_context
+def cmd_has(ctx, result_id, name, type):
+    '''
+    Echo matching result IDs or error if no match found.
+    '''
+    import sys
+    ses = ctx.obj['session']
+    results = get_matching_results(ses, result_id, name, type)
+    if not results:
+        sys.exit(1)
+    for r in results:
+        click.echo(r.id)
 
 
 @cli.command("list")
@@ -316,6 +338,24 @@ def cmd_wires(ctx, wires, name):
     res = config_call(ctx, 'wires', wires, name, 'wires', parents=None)
     save_result(ctx, res)
 
+@cli.command("points")
+@click.option('-p','--points', default=None,
+              help='The "[points]" configuration file section.')
+@click.option('-w', '--wires', default=None, metavar="<result>",
+              help='The "wires" RESULT to use (id or name, default=use most recent).')
+@click.argument('name')
+@click.pass_context
+def cmd_wires(ctx, points, wires, name):
+    '''
+    Generate points, possibly with a wires result as a guide.
+    '''
+    # eg: larf.points.wires
+    wres = get_result(ctx, 'wires', wires)
+    res = config_call(ctx, 'points', points, name, 'points', parents=[wres])
+    save_result(ctx, res)
+
+
+
 @cli.command("surface")
 @click.option('-s','--surface', default=None,
               help='The "[surface]" configuration file section.')
@@ -397,9 +437,72 @@ def cmd_evaluate(ctx, evaluate, boundary, volume, name):
     return
 
 
+@cli.command("raster")
+@click.option('-r','--raster',  
+              help='The "[raster]" configuration file section.')
+@click.option('-b','--boundary', default=None, metavar="<result>",
+              help='The "boundary" result to use.')
+@click.argument('name')
+@click.pass_context
+def cmd_raster(ctx, raster, boundary, name):
+    '''
+    Evaluate a solution on a grid of points.
+    '''
+    bres = get_result(ctx, 'boundary', boundary)
+    # eg larf.raster.rectilinear
+    rres = config_call(ctx, "raster", raster, name, parents=[bres])
+    save_result(ctx, rres)
 
 
 
+@cli.command("drift")
+@click.option('-d', '--drift', 
+              help='The "[drift]" configuration file section.')
+@click.option('-b', '--boundary', default=None, metavar="<result>",
+              help='The drift "boundary" result.')
+@click.option('-w', '--wires', default=None, metavar="<result>",
+              help='The "wires" result.')
+@click.option('-p', '--points', default=None, metavar="<result>",
+              help='The "points" result.')
+@click.argument('name')
+@click.pass_context
+def cmd_drift(ctx, drift, boundary, wires, points, name):
+    '''
+    Make paths through a dark and dangerous dungeon.
+    '''
+    bres = get_result(ctx, 'boundary', boundary)
+    wres = get_result(ctx, 'wires', wires)
+    pres = get_result(ctx, 'points', points)
+    # eg larf.rogue.patch
+    dres = config_call(ctx, "drift", drift, name, parents=[bres, wres, pres])
+    save_result(ctx, dres)
+
+
+
+@cli.command("current")
+@click.option('-c', '--current', 
+              help='The "[current]" configuration file section.')
+@click.option('-b', '--boundary', default=None, metavar="<result>",
+              help='The weight "boundary" result.')
+@click.option('-d', '--drift', default=None, metavar="<result>",
+              help='The "drift" result.')
+@click.argument('name')
+@click.pass_context
+def cmd_current(ctx, current, boundary, drift, name):
+    '''
+    Make paths through a dark and dangerous dungeon.
+    '''
+    bres = get_result(ctx, 'boundary', boundary)
+    dres = get_result(ctx, 'drift', drift)
+    # eg larf.current.dqdt
+    cres = config_call(ctx, "current", current, name, parents=[bres, dres])
+    save_result(ctx, cres)
+
+
+
+
+
+###################################### old ##################################
 
 
 
@@ -589,14 +692,14 @@ def cmd_copy_boundary(ctx, boundary, name):
     ses.commit()
 
 
-@cli.command("raster")
+@cli.command("oldraster")
 @click.option('-r','--raster',  
               help='The "[raster]" configuration file section.')
 @click.option('-b','--boundary', default=None,
               help='The "boundary" result to use.')
 @click.argument('name')
 @click.pass_context
-def cmd_raster(ctx, raster, boundary, name):
+def cmd_oldraster(ctx, raster, boundary, name):
     '''
     Evaluate a solution on a grid of points.
     '''
@@ -753,14 +856,14 @@ def cmd_step(ctx, step, velocity, name):
     announce_result('steps', res)
     return
 
-@cli.command("rogue")
+@cli.command("oldrogue")
 @click.option('-d', '--drift-boundary', default=None,
               help='The drift boundary result.')
 @click.option('-r', '--rogue', 
               help='The "[rogue]" configuration file section.')
 @click.argument('name')
 @click.pass_context
-def cmd_rogue(ctx, drift_boundary, rogue, name):
+def cmd_oldrogue(ctx, drift_boundary, rogue, name):
     '''
     Make paths through a dark and dangerous dungeon.
     '''
@@ -845,7 +948,7 @@ def cmd_stepfilter(ctx, stepfilter, stepping, name):
     announce_result('stepfilter', res)
 
 
-@cli.command("current")
+@cli.command("oldcurrent")
 @click.option('-s', '--stepping', default = None,
               help='The input stepping result.')
 @click.option('-w', '--weight', default = None,
@@ -854,7 +957,7 @@ def cmd_stepfilter(ctx, stepfilter, stepping, name):
               help='Charge in number of electrons.')
 @click.argument('name')
 @click.pass_context
-def cmd_current(ctx, stepping, weight, charge, name):
+def cmd_oldcurrent(ctx, stepping, weight, charge, name):
     '''
     Produce currents along steps.
     '''

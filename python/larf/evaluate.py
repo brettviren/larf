@@ -4,7 +4,6 @@ Evaluate solution on on volume points
 '''
 
 from larf.boundary import result_to_grid_funs
-from larf.raster import Points
 from larf.bem import spaces, knobs
 from larf.models import Array
 import bempp.api.operators

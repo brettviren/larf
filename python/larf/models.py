@@ -53,6 +53,8 @@ result_types = [
     'boundary',
     'volume',
     'evaluate',
+    'drift',
+    'points',
     
     # obsoleted types below 
 
@@ -118,13 +120,25 @@ class Result(Base):
     # children = relationship("Result")
 
     def array_data_by_type(self):
+        '''
+        Return dictionary key'ed by array type.  No check for uniqueness.
+        '''
         return {a.type:a.data for a in self.arrays}
     def array_data_by_name(self):
+        '''
+        Return dictionary key'ed by array name.  No check for uniqueness.
+        '''
         return {a.name:a.data for a in self.arrays}
     def triplets(self):
+        '''
+        Return (type, name data) triplet for each array, in order.
+        '''
         return [ (a.type,a.name,a.data) for a in self.arrays ]
 
     def get_matching(self, type=None, name=None):
+        '''
+        Return arrays which match given type and/or name if specified.
+        '''
         ret = list()
         for t,n,a in self.triplets():
             if type and name:
@@ -140,10 +154,16 @@ class Result(Base):
         return ret
 
     def parent_by_type(self, type):
+        '''
+        Return the first parent of this result that matches the given type.
+        '''
         for p in self.parents:
             if p.type == type:
                 return p
     def parent_by_name(self, name):
+        '''
+        Return the first parent of this result that matches the given name.
+        '''
         for p in self.parents:
             if p.name == name:
                 return p

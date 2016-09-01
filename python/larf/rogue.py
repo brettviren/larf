@@ -2,8 +2,17 @@ from larf import units
 import larf.util
 import larf.drift
 from larf.stepping import Stepper, CollectSteps, StuckDetection
+from larf.geometry import RayCollision
+from larf.models import Array
+from larf.bem import knobs
+from larf.boundary import result_to_grid_funs
+from larf.raster import Points
+
+
 import numpy
 import math
+
+
 
 class BatchedGradientFunction(object):
     def __init__(self, scalar_function, lcar=10*units.um):
@@ -180,19 +189,92 @@ class BatchedStepper_rkck(object):
         return rnext
 
 
-def patch(batched_potential_function,
-          corner = (19*units.mm, 10*units.mm, 10*units.mm),
-          sep = (0.1*units.mm, 0.1*units.mm), start_time=0.0,
-          gradlcar = 10*units.um, steptime=0.1*units.us,
-          stuck=1*units.um, maxiter=300, maxtime=30*units.us,
+
+
+
+class StopStepping(object):
+    def __init__(self, stuck_distance, stop_radius, *wire_rays):
+        self.stuck = stuck_distance
+        self.inside = RayCollision(stop_radius, wire_rays)
+    def __call__(self, p1, p2):
+        step=p2-p1
+        dist = math.sqrt(sum([s**2 for s in step[:3]]))
+        if dist < self.stuck:
+            print "stuck: dist=%.1f mm < %.1f mm, step: %s %s" % (dist/units.mm, self.stuck/units.mm, p1, p2)
+            return True
+        cyl = self.inside(p2[:3]) # hit wire
+        if cyl:
+            print "in wire: %s, step: %s %s" % (cyl.ray, p1, p2)
+            return True
+        return False
+        
+def step_maybe(paths, points, stop):
+    '''
+    For each path and point, add point to path unless it's time to stop.
+
+    Return pair of (paths, points) with which to continue stepping. 
+    '''
+
+    next_points = list()
+    next_paths = list()
+
+    for path, p2 in zip(paths, points):
+        p1 = path[-1]
+        if stop(p1, p2):
+            print "hit wire at %s, took %d steps starting at %s" % (p2, len(path)-1, path[0])
+            continue
+        # okay to continue
+        path.append(p2)
+        next_paths.append(path)
+        next_points.append(p2)
+
+    return numpy.asarray(next_points), next_paths
+
+def batch_points(points, nper):
+    '''
+    Partition N_points X 3 array points into list of arrays each array
+    i is shape N_i X 3, where N_i<=nper.
+    '''
+    npoints = len(points)
+    ret = list()
+    ind = 0
+    while ind < npoints:
+        ret.append(points[ind:ind+nper,:])
+        ind += nper
+    return ret
+    
+    
+#fixme: this function does too much all in one place.  Factor it!
+def drift(parents=(),           # boundary, wires, points
+          start_time = 0.0,
+          gradlcar = 10*units.um,
+          steptime=0.1*units.us,
+          stuck=1*units.um,
+          maxiter=300,
+          maxtime=30*units.us,
+          stop_radius = 0.2*units.mm,
           temperature = 89*units.Kelvin,
-          namepat = "path%04d", stepper = 'rkck', **kwds):
+          namepat = "{source}-{count:05d}", # pattern to name path arrays
+          stepper = 'rkck',
+          batch_paths = 100, # max number of paths to run in parallel, not including x7 at each step for gradient
+          **kwds):
     '''
-    Return paths stepped through vfield starting at many points on a
-    rectangular patch.  A collection of (name, path) pairs are
-    returned.  Each path is a numpy array of (x,y,z,t).
+    From parent results (boundary, wires, points) return paths stepped
+    through drift field given by boundary starting at given points and
+    until hitting on of the wires or other halt conditions.  A
+    collection of (name, path) pairs are returned.  Each path is a
+    numpy array of (x,y,z,t).
     '''
-    efield = BatchedGradientFunction(batched_potential_function, gradlcar)
+    kwds = knobs(**kwds)
+
+    bres, wres, pres = parents
+
+    wire_arrays = [a.data for a in wres.arrays]
+    print [a.shape for a in wire_arrays]
+    stop = StopStepping(stuck, stop_radius, *wire_arrays)
+
+    potential = Points(*result_to_grid_funs(bres))
+    efield = BatchedGradientFunction(potential, gradlcar)
     velo = BatchedVelocity(efield, temperature)
 
     if stepper == 'rkck':
@@ -200,66 +282,48 @@ def patch(batched_potential_function,
     if stepper == 'jump':
         stepper = BatchedStepper_jump(velo)
 
-
-    cx,cy,cz = corner
-    sepy, sepz = sep
     points = list()
-    x = cx
-    for y in numpy.linspace(-cy, cy, 1+int(2.0*cy/sepy)):
-        for z in numpy.linspace(-cz, cz, 1+int(2.0*cz/sepz)):
-            pt = (x,y,z,start_time)
-            points.append(pt)
-    #testing...
-    #gradlcar = 25*units.um
-    # points = [
-    #     (19*units.mm, 0*units.mm, 0*units.mm, start_time),
-    #     (19*units.mm, 1*units.mm, 1*units.mm, start_time),
-    #     (19*units.mm, 1*units.mm, 0*units.mm, start_time),
-    #     (19*units.mm, 0*units.mm, 1*units.mm, start_time),
-    # ]
-    points = numpy.asarray(points)
+    point_set_desc = list()
+    for typ,nam,arr in pres.triplets():
+        if typ != 'points':
+            continue
+        point_set_desc.append((nam, arr.size/3))
+        points.append(numpy.vstack(arr))
 
-    print 'initial points: ', points.shape
+    points = numpy.vstack(points)
+    npoints = len(points)
+    times = numpy.asarray([start_time]*npoints)
+    points = numpy.hstack((points, times.reshape(npoints, 1)))
 
-    all_paths = [[p] for p in points]
-    active_paths = list(all_paths)
+    batches = batch_points(points, batch_paths)
 
-    def bookkeeping(points1, points2, paths):
-        dr = points2[0,:3] - points1[0,:3]
-        dr = math.sqrt(sum([dx**2 for dx in dr]))
-        dt = points2[0,3] - points1[0,3]
-        v = dr/dt 
-        
-        print 'N=%d v=%f mm/us t=%.1f us\n\tr1=%s\n\tr2=%s' % \
-            (len(points1), v / (units.mm/units.us), points2[0][3]/units.us, points1[0,:3], points2[0,:3])
+    paths = list()
+    for batch in batches:
+        print "Stepping batch of %d paths" % len(batch)
 
-        next_points = list()
-        next_paths = list()
-        
-        #fixme: should array'ify this?
-        for p1,p2,path in zip(points1, points2, paths):
-            path.append(p2)
-            step=p2-p1
-            dist = math.sqrt(sum([s**2 for s in step[:3]]))
-            if dist < stuck:
-                continue
-            next_paths.append(path)
-            next_points.append(p2)
+        all_paths = [[p] for p in batch]
+        active_paths = list(all_paths)
 
-        return numpy.asarray(next_points), next_paths
-            
+        tips = batch
+        for istep in range(maxiter):
+            print "step %d/%d with %d paths, %d points" % (istep, maxiter, len(active_paths), len(tips))
+            print "batch[0] tip point: %s"  % tips[0]
+            next_points = stepper(steptime, tips)
+            tips, active_paths = step_maybe(active_paths, next_points, stop)
+            if len(points) <= 0:
+                break
+            if points[0,3] > maxtime:
+                break
+        paths += all_paths
 
-    for istep in range(maxiter):
-        next_points = stepper(steptime, points)
-        points, active_paths = bookkeeping(points, next_points, active_paths)
-        if len(points) <= 0:
-            break
-        if points[0,3] > maxtime:
-            break
-
-    ret = list()
-    for count, path in enumerate(all_paths):
-        ret.append(('path',namepat%count, path))
+    arrays = list()        
+    for name, size in point_set_desc:
+        for ipt in range(size):
+            print name, size, ipt, len(paths)
+            path = paths.pop(0)
+            aname = namepat.format(count=ipt, source=name)
+            array = Array(type='path',name=aname, data=numpy.asarray(path))
+            arrays.append(array)
 
     extra = [
         ('points','potential_points',efield.scalar_points),
@@ -272,12 +336,9 @@ def patch(batched_potential_function,
         ('points','velocity_points', velo.points),
         ('ptuple','velocity', velo.velocities),
         ]
-
     for t,n,a in extra:
-        print '%s %s %s' % (t,n,a.shape)
+        arrays.append(Array(type=t, name=n, data=numpy.asarray(a)))
 
-    return ret + extra
-
-
+    return arrays
 
 

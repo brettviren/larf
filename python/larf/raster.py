@@ -19,6 +19,10 @@ import bempp.api
 from time import time as now
 from larf.bem import spaces
 from larf.models import Array
+from larf.bem import knobs
+from larf.boundary import result_to_grid_funs
+from larf import units
+
 
 class Points(object):
     def __init__(self, grid, dfun, sol):
@@ -30,10 +34,15 @@ class Points(object):
         npoints = len(points)
         points = np.asarray(points).T
 
+        t1 = now()
         slp_pot = bempp.api.operators.potential.laplace.single_layer(self.pcspace, points)
         ret = slp_pot * self.sol
+        t2 = now()
+        print "eval %d points in %.1f seconds at x=%.1f mm" % (npoints, t2-t1, points[0][0]/units.mm)
         return ret.reshape((npoints))
         
+# This used a vector term for the solving the Neumann BC and is more
+# than is needed (advice from Timo).
 class PointsOld(object):
     def __init__(self, grid, dfun, nfun):
         self.dfun = dfun
@@ -49,7 +58,7 @@ class PointsOld(object):
         return ret.reshape((npoints))
         
 
-def linear(grid, dfun, sol,
+def linear_lowlevel(grid, dfun, sol,
            linspaces=[(-1.,1.,10), (-2.,2.,20), (-3.,3.,30)], **kwds):
     '''
     Evaluate the potential on a linear grid space.
@@ -81,6 +90,13 @@ def linear(grid, dfun, sol,
 #        Array(type='points', name='points', data = points.T),
     ]
     
+
+def linear(parents=(), **kwds):
+    kwds = knobs(**kwds) # set BEM++ accuracy knobs
+
+    bres = parents[0]           # get boundary
+    grid, dfun, nfun = result_to_grid_funs(bres)
+    return linear_lowlevel(grid, dfun, nfun, **kwds)
 
 
 def linear_old(grid, dfun, nfun,

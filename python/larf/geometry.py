@@ -113,6 +113,9 @@ class Geo(object):
     '''
     Base class providing some shared geometry object functionality.
     '''
+
+    epsilon = 1e-9
+
     def index_grid_point(self, p):
         '''
         Add a grid point and return its index
@@ -191,8 +194,6 @@ class Geo(object):
 
 
 class Cylinder(Geo):
-
-    epsilon = 1e-9
 
     def __init__(self, radius, height,
                  center=(0.,0.,0.), direction=(0.,0.,1.),
@@ -274,7 +275,11 @@ class Cylinder(Geo):
         dist = math.sqrt(sum([t**2 for t in topt]))
         return dist <= self.radius
 
-    
+    @property
+    def ray(self):
+        return [ self.center - self.height*self.direction,
+                 self.center + self.height*self.direction]
+
     
 def aggregate(geos, domain_offsets = None):
     '''
@@ -310,6 +315,13 @@ class GeoAggregate(Geo):
         self._grid_points = p
         self._grid_elements = e
         self._grid_domains = d
+
+    @property
+    def geo_objects(self):
+        '''
+        The individual Geometry objects this one aggregates.
+        '''
+        return self._geo_objects
 
     @property
     def grid_points(self):
@@ -446,5 +458,19 @@ class CircularScreen(Geo):
         self._elements = numpy.asarray(elements)
         self._domains = numpy.asarray([domain]*len(elements))
         return
+                
+            
+class RayCollision(object):
+    def __init__(self, stop_radius, planes):
+        self.planes = [WirePlane(stop_radius, plane) for plane in planes]
+
+    def __call__(self, point):
+        for plane in self.planes:
+            if not plane.inbbox(point):
+                continue
+            for cyl in plane.geo_objects:
+                if cyl.inside(point):
+                    return cyl
+        return False
                 
             

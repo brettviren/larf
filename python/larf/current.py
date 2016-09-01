@@ -1,7 +1,40 @@
 from larf.vector import Scalar
 from larf.util import mgrid_to_linspace
+
+from larf.boundary import result_to_grid_funs
+from larf.raster import Points
+from larf.models import Array
+
 import math
 import numpy
+
+def dqdt(parents=(), charge=1, **kwds):
+    '''
+    Using the dQ/dt method and for the weight given by the "boundary"
+    parent and for each path in the "drift" parent result, produce
+    instantaneous current waveforms.
+    '''
+    bres, dres = parents
+    
+    weight = Points(*result_to_grid_funs(bres))
+
+    arrays = list()
+    for typ,nam,arr in sorted(dres.triplets()):
+        if typ != "path":
+            continue
+
+        points = arr[:,:3]
+        times = arr[:,3]
+        weights = weight(*points)
+        dqdt = charge * (weights[1:] - weights[:-1])/(times[1:] - times[:-1])
+        dqdt = numpy.hstack(([0], dqdt)) # gain back missed point
+        print nam, dqdt.shape
+        arrays.append(Array(name=nam, type='pscalar', data=dqdt))
+
+    return arrays
+
+
+
 
 def sample(steps, cfield, mgrid, lcar = None, **kwds):
     '''

@@ -21,6 +21,10 @@ def unit_dict():
         if k.startswith('_'):
             continue
         ret[k] = v
+    for k,v in math.__dict__.items():
+        if k.startswith('_'):
+            continue
+        ret[k] = v
     return ret
 
 def unitify(expression, **variables):

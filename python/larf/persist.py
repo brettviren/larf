@@ -8,7 +8,7 @@ Functions here are used by CLI assuming they follow
 
 naming pattern.  
 '''
-
+import os.path as osp
 import numpy
 from larf.util import mgrid_to_linspace
 
@@ -54,6 +54,93 @@ def _save_mgrid_vtk(result, outfile, **kwds):
 
 save_raster_vtk = _save_mgrid_vtk
 save_velocity_vtk = _save_mgrid_vtk
+
+def save_wires_vtk(result, outfile, **kwds):
+    '''
+    Save wires.
+    '''
+    from tvtk.api import tvtk, write_data
+    points = list()
+    lines = list()
+    plane_numbers = list()
+    domains = list()
+    iplane=0
+    for typ,nam,arr in result.triplets():
+        if typ != 'rays':
+            continue
+        mp = result.params[iplane]
+        params = mp['params']
+        domain_offset = params['domain_offset']
+        iplane += 1
+        print iplane, domain_offset, typ, nam, arr.shape
+
+
+        for iwire,(t,h) in enumerate(arr):
+            plane_numbers.append(iplane)
+            ti = len(points)
+            points.append(t)
+            hi = len(points)
+            points.append(h)
+            lines.append((ti,hi))
+            domains.append(domain_offset + iwire)
+
+    point_type = tvtk.Line().cell_type
+    pd = tvtk.PolyData(points=numpy.asarray(points), lines=numpy.asarray(lines))
+
+    pd.cell_data.add_array(numpy.asarray(plane_numbers))
+    pd.cell_data.get_array(0).name = 'plane'
+    pd.cell_data.add_array(numpy.asarray(domains))
+    pd.cell_data.get_array(1).name = 'domain'
+
+    write_data(pd, outfile)
+
+def save_points_vtk(result, outfile, **kwds):
+    '''
+    Save a points result to a VTK file.
+    '''
+    from tvtk.api import tvtk, write_data
+    for typ, nam, arr in result.triplets():
+        print typ,nam,arr.shape
+        dim = arr.shape[:-1]
+        points = arr.reshape(numpy.product(dim), arr.shape[-1])
+        pd = tvtk.StructuredGrid(dimensions = (1, dim[0], dim[1]),
+                                 points=points)
+        n,e = osp.splitext(outfile)
+        fname = n + "-" + nam + e
+        print "writing %s" % fname
+        write_data(pd, fname)
+
+        
+        
+def save_drift_vtk(result, outfile, **kwds):
+    '''
+    Save a drift result into a VTK file.
+    '''
+
+    from tvtk.api import tvtk, write_data
+
+    arrs = result.array_data_by_name()
+    points = arrs['potential_points']
+    potarr = arrs['potential']
+    npoints = len(points)
+
+    ug = tvtk.UnstructuredGrid()
+
+    point_type = tvtk.Vertex().cell_type
+
+    cell_types = numpy.array([point_type]*npoints)
+    cell_array = tvtk.CellArray()
+    cells = numpy.array([npoints]+range(npoints))
+    cell_array.set_cells(point_type, cells)
+
+    ug.set_cells(1, cell_array)
+
+    ug.points = points
+    ug.point_data.scalars = potarr
+    ug.point_data.scalars.name = 'potential'
+
+    write_data(ug, outfile)
+
 
 def save_surface_vtk(result, outfile, **kwds):
     '''
@@ -111,6 +198,34 @@ def save_boundary_vtk(result, outfile, **kwds):
     write_data(pd, outfile)
     return
 
+
+def save_evaluate_vtk(result, outfile, **kwds):
+    '''
+    Save a evaluation result to a VTK file.
+    '''
+    from tvtk.api import tvtk, write_data
+
+    points = result.parent_by_type('volume').array_data_by_type()['points']
+
+    filter = tvtk.AppendFilter()
+
+    pot = result.array_data_by_type()['scalar']
+
+    pd = tvtk.PolyData(points = points)
+    pd.point_data.scalars = pot.T
+    pd.point_data.scalars.name = result.name
+    pd.cell_data.scalars = pot.T
+    pd.cell_data.scalars.name = result.name
+
+    if False:
+        filter.add_input_data(pd)
+        filter.update()
+        ug = tvtk.UnstructuredGrid()
+        ug.shallow_copy(filter.get_output())
+        write_data(ug, outfile)
+    else:
+        write_data(pd, outfile)        
+    return
 
 
 
