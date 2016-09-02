@@ -21,8 +21,12 @@ export NO_AT_BRIDGE=1
 mydir="$(dirname $(readlink -f $BASH_SOURCE))"
 thisname="$(basename $BASH_SOURCE .sh)"
 logfile="$mydir/${thisname}.log"
+outdir=/data1/users/bv/larf-run/${thisname}
+mkdir -p $outdir
+dbfile=$outdir/larf.db
+
 thislarf () {
-    larf -c "${mydir}/${thisname}.cfg" -s "${mydir}/${thisname}.db" $@
+    larf -c "${mydir}/${thisname}.cfg" -s "${dbfile}" $@
 }
 doifneeded () {
     name=$1 ; shift
@@ -37,7 +41,9 @@ doifneeded () {
     dt=$(( $t2 - $t1 ))
     echo "  elapsed: $dt seconds"
     echo "  elapsed: $dt seconds" >> $logfile
-    thislarf export -n $name "${name}.vtk" >> $logfile 2>&1
+    vtkfile="${outdir}/${name}.vtk"
+    echo "export to $vtkfile"
+    thislarf export -n $name $vtkfile >> $logfile 2>&1
 }
 #set -x
 set -e
@@ -47,6 +53,8 @@ set -e
 # wire geometry and surface
 doifneeded wires			wires -w wireplanes
 doifneeded surface			surface -s wirescreen	-w wires
+
+exit 
 
 # calculate boundary conditions
 doifneeded drift-boundary		boundary -b drift	-s surface 

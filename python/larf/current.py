@@ -4,11 +4,14 @@ from larf.util import mgrid_to_linspace
 from larf.boundary import result_to_grid_funs
 from larf.raster import Points
 from larf.models import Array
+import larf.points
 
 import math
 import numpy
 
-def dqdt(parents=(), charge=1, **kwds):
+def dqdt(parents=(), charge=1,
+         batch_paths = 100, # max number of paths to run in parallel, not including x7 at each step for gradient
+         **kwds):
     '''
     Using the dQ/dt method and for the weight given by the "boundary"
     parent and for each path in the "drift" parent result, produce
@@ -18,18 +21,65 @@ def dqdt(parents=(), charge=1, **kwds):
     
     weight = Points(*result_to_grid_funs(bres))
 
-    arrays = list()
+    path_points = list()
+    path_lengths = list()
+    path_names = list()
     for typ,nam,arr in sorted(dres.triplets()):
         if typ != "path":
             continue
+        path_points.append(arr)
+        path_lengths.append(len(arr))
+        path_names.append(nam)
 
-        points = arr[:,:3]
-        times = arr[:,3]
+    all_points = numpy.vstack(path_points)
+        
+    batches = larf.points.batch(all_points, batch_paths)
+    print '%d batches' % len(batches)
+
+    all_weights = list()
+    for count, batch in enumerate(batches):
+        points = batch[:,:3]
+        times = batch[:,3]
         weights = weight(*points)
+        print 'batch %d batch=%s pts=%s times=%s weights=%s' % (count, batch.shape, points.shape, times.shape, weights.shape)
+        all_weights.append(weights)
+    all_weights = numpy.hstack(all_weights)
+    print 'all weights: %s' % str(all_weights.shape)
+
+    path_weights = list()
+    pind = 0
+    for plen in path_lengths:
+        pweights = all_weights[pind:pind+plen]
+        #print 'collate: weights=%s pind=%d plen=%d' % (pweights.shape, pind, plen)
+        pind += plen
+        path_weights.append(pweights)
+
+    assert len(path_points) == len(path_weights)
+
+    arrays = list()
+    for count, (path, weights, nam) in enumerate(zip(path_points, path_weights, path_names)):
+        points = path[:,:3]
+        times = path[:,3]
+        print 'zip %d pts=%s times=%s weights=%s' % (count, points.shape, times.shape, weights.shape)
+
         dqdt = charge * (weights[1:] - weights[:-1])/(times[1:] - times[:-1])
         dqdt = numpy.hstack(([0], dqdt)) # gain back missed point
         print nam, dqdt.shape
         arrays.append(Array(name=nam, type='pscalar', data=dqdt))
+        
+
+    # arrays = list()
+    # for typ,nam,arr in sorted(dres.triplets()):
+    #     if typ != "path":
+    #         continue
+
+    #     points = arr[:,:3]
+    #     times = arr[:,3]
+    #     weights = weight(*points)
+    #     dqdt = charge * (weights[1:] - weights[:-1])/(times[1:] - times[:-1])
+    #     dqdt = numpy.hstack(([0], dqdt)) # gain back missed point
+    #     print nam, dqdt.shape
+    #     arrays.append(Array(name=nam, type='pscalar', data=dqdt))
 
     return arrays
 

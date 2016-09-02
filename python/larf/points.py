@@ -85,3 +85,16 @@ def wires(parents=(),           # wire result
     return arrays
 
     
+def batch(points, nper):
+    '''
+    Partition N_points X 3 array points into list of arrays each array
+    i is shape N_i X 3, where N_i<=nper.
+    '''
+    npoints = len(points)
+    ret = list()
+    ind = 0
+    while ind < npoints:
+        ret.append(points[ind:ind+nper,:])
+        ind += nper
+    return ret
+    
