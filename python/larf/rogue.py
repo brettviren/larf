@@ -7,6 +7,7 @@ from larf.models import Array
 from larf.bem import knobs
 from larf.boundary import result_to_grid_funs
 from larf.raster import Points
+import larf.points
 
 
 import numpy
@@ -230,19 +231,6 @@ def step_maybe(paths, points, stop):
 
     return numpy.asarray(next_points), next_paths
 
-def batch_points(points, nper):
-    '''
-    Partition N_points X 3 array points into list of arrays each array
-    i is shape N_i X 3, where N_i<=nper.
-    '''
-    npoints = len(points)
-    ret = list()
-    ind = 0
-    while ind < npoints:
-        ret.append(points[ind:ind+nper,:])
-        ind += nper
-    return ret
-    
     
 #fixme: this function does too much all in one place.  Factor it!
 def drift(parents=(),           # boundary, wires, points
@@ -295,7 +283,7 @@ def drift(parents=(),           # boundary, wires, points
     times = numpy.asarray([start_time]*npoints)
     points = numpy.hstack((points, times.reshape(npoints, 1)))
 
-    batches = batch_points(points, batch_paths)
+    batches = larf.points.batch(points, batch_paths)
 
     paths = list()
     for batch in batches:
@@ -306,6 +294,10 @@ def drift(parents=(),           # boundary, wires, points
 
         tips = batch
         for istep in range(maxiter):
+            if 0 == len(tips):
+                break
+            if 0 == len(active_paths):
+                break
             print "step %d/%d with %d paths, %d points" % (istep, maxiter, len(active_paths), len(tips))
             print "batch[0] tip point: %s"  % tips[0]
             next_points = stepper(steptime, tips)
