@@ -38,18 +38,49 @@
 
 \section{Motivation}
 
+\begin{frame}[fragile]
+  \frametitle{What Determines TPC Detector Response}
+  Two types of fields:
+  \begin{description}\footnotesize
+  \item[$\vec{E}_{drift}$] applied electrostatic potential determines electron drift path.
+  \item[$\vec{E}_{weight,i}$] Shockley-Ramo potential for a given wire determines
+    the current \textbf{response} for a given drift path.
+  \end{description}
+
+  \begin{center}
+    $\vec{v} = \mu(E_{drift}) \times \vec{E}_{drift}$
+
+    $I_{i} = q * \vec{v} \cdot \vec{E}_{weight,i}$
+  \end{center}
+  \begin{description}\scriptsize
+  \item[$\vec{v}$] instantaneous velocity of a charge at a given location
+  \item[$\mu$] electron mobility, also function of temperature
+  \item[$I_i$] current on wire $i$ evaluated over drift path.
+  \end{description}
+  Also critical: electronics response and noise (both irreducible and subtractable).
+\end{frame}
+
 \begin{frame}
   \frametitle{Why Calculate Fields}
-  Electrostatic and Shockley-Ramo ``weighting'' fields determine:
+
   \begin{itemize}
-  \item the path and velocity of drifting electrons.
-  \item the shape and intensity of induced signals.
+  \item TPC provides the time, geometry and charge information input
+    to reconstruction.
+  \item High quality signal processing is required to extract this
+    information correctly.
+  \item Knowing the detector \textbf{response} is the key to:
     \begin{itemize}
-    \item[$\rightarrow$] collection signals are induction signals.
+    \item realistic TCP readout simulation (see Xiaoyue's talk)
+    \item extracting accurate measure of drifting charge topology
     \end{itemize}
-  \item how we best extract our signals.
-  \item ultimately what our events look like.
+  \item Provides fundamental enabler of a host of reconstruction technologies:
+    \begin{itemize}
+    \item[$\rightarrow$] Deep Learning, Wire Cell, Gaussian hit finding, ...
+    \end{itemize}
   \end{itemize}
+
+  Crucial to also \textbf{validate} response calculations, such as with in-situ
+  measurements and dedicated experiments (eg, LArFCS).
 \end{frame}
 
 
@@ -67,8 +98,8 @@
       \begin{itemize}
       \item \textbf{F}inite \textbf{E}lement \textbf{M}ethod, high
         precision over limited 2D region.
-      \item Reproduces major features, especially in the bulk volume.
-      \item Relatively fast, allows exploring parameter space.
+      \item Reproduces major field features, especially away from the inter-plane region.
+      \item Relatively fast calculation, allows exploring (2D) parameter space.
       \end{itemize}
     \end{column}
   \end{columns}
@@ -96,12 +127,20 @@
   \frametitle{Why BEM?}
   \textbf{B}oundary \textbf{E}lement \textbf{M}ethod
   \begin{itemize}
-  \item FEM scales as the volume, BEM as the surface.
-  \item BEM solution and evaluation decoupled, can evaluate at
-    arbitrary points.
-  \item BEM requires less CPU than FEM (hours vs days).
-  \item BEM has less mature tools, so requires some development and
-    validation for a given geometry.
+  \item Handles 3D geometry (also 2D)
+  \item Scales as the surface (FEM scales as the volume)
+    \begin{itemize}
+    \item[$\rightarrow$] 3D BEM requires less CPU than 3D FEM (hours vs days).
+    \end{itemize}
+  \item Solution and evaluation are decoupled. (FEM uses single volume mesh for both).
+    \begin{itemize}
+    \item[$\rightarrow$] can evaluate potentials at arbitrary points in space.
+    \end{itemize}
+  \item BEM has fewer available high-level tools (compared to FEM)
+    \begin{itemize}
+    \item[$\rightarrow$] development against s/w libraries required,
+      expertise and effort needed to validate and tune.
+    \end{itemize}
   \end{itemize}
 \end{frame}
 
@@ -143,11 +182,11 @@
       \begin{itemize}
       \item Wires specified by their endpoints and a radius, 
         different wire envelopes possible.
-      \item Parameterized wire generator included, covers DUNE, $\mu$Boone,
+      \item A parameterized wire generator is included, covers DUNE, $\mu$Boone and
         others.
-      \item Wires geometry seeds surface mesh and to govern
+      \item Wire geometry used to seed a surface mesh and detect
         electron/wire ``hits'' to stop path stepping.
-      \item Wire extent drives scale (CPU/RAM) of calculation.
+      \item The wire extent size drives CPU/RAM needed for calculation.
       \end{itemize}
     \end{column}
   \end{columns}
@@ -161,12 +200,15 @@
 
     \Put(100,350){\includegraphics[height=2cm,clip,trim=0cm 0cm 0cm 0cm]{steps/surface2.png}}
   \end{center}
+
+  \vspace{-2mm}
+
   \begin{itemize}
-  \item Meshing of cylinders and flat disks provided.
+  \item Meshing of cylinders, boxes and flat disks provided.
     \begin{itemize}\footnotesize
-    \item Can use GMSH or roll-your-own.
+    \item Or, can use GMSH or generate your own meshes.
     \end{itemize}
-  \item Mesh size drives determines accuracy (and run time).
+  \item Mesh size drives accuracy and precision (and run time).
   \end{itemize}
 
 \end{frame}
@@ -176,25 +218,32 @@
     \includegraphics[height=5cm,clip,trim=0cm 0cm 0cm 0cm]{steps/drift-boundary1.png}%        
     \includegraphics[height=5cm,clip,trim=0cm 0cm 00cm 0cm]{steps/drift-boundary2.png}
 
-    \scriptsize Color is magnitude of E-field normal to surface.
-    Note, scaled to show edge effects.
+    \scriptsize Color is Neumann b.c.
+    Note, color scaled to show edge effects.
   \end{center}
   \begin{itemize}\footnotesize
   \item Apply scalar potential (Dirichlet) boundary conditions.
-  \item BEM solves for \texttt{mag(norm(Efield)} (Neumann) boundary conditions.
-  \item Finite sized geometry leads to unwanted edge effects.
+  \item BEM solves for $|\hat{n}\cdot\vec{E}_{drift}|$ (Neumann) boundary conditions.
+    \begin{itemize}\scriptsize
+    \item [$\rightarrow$] once solved, can evaluate potential anywhere in space.
+    \end{itemize}
+  \item[$\Rightarrow$] Finite sized geometry leads to unwanted edge effects.
   \end{itemize}
   
 \end{frame}
 \begin{frame}
-  \frametitle{Starting Points}
+  \frametitle{Path Starting Points}
   \begin{center}
     \includegraphics[height=5cm,clip,trim=0cm 0cm 0cm 0cm]{steps/ustarts1.png}%        
     \includegraphics[height=5cm,clip,trim=0cm 0cm 00cm 0cm]{steps/ustarts2.png}
   \end{center}
   \begin{itemize}
   \item Generate starting points for drift paths.  
-  \item Various schemes, this one aligns with wire-of-interest.
+  \item Various schemes, this one aligns with central U-wire.
+    \begin{itemize}\footnotesize
+    \item[$\rightarrow$] spans $\sim$2 periods of crossing pattern in longitudinal direction.
+    \item[$\rightarrow$] spans $\pm$9 transverse wire regions in addition to central region.
+    \end{itemize}
   \end{itemize}
   
 \end{frame}
@@ -219,7 +268,7 @@
     % \includegraphics[height=3cm,clip,trim=0cm 10cm 0cm 10cm]{steps/upaths4.png}
   \end{center}
   \begin{itemize}\footnotesize
-  \item Steps use 5th order Runge-Kutta with fixed step size.
+  \item Steps use 5th order Runge-Kutta with fixed step size (0.1$\mu$s).
   \item Each sub-step evaluates potential on 7 points to get gradient.
   \item Steps terminate if they ``hit'' a wire.
   \end{itemize}
@@ -249,7 +298,7 @@
         \end{itemize}
       \item For now, live with small error.  
         \begin{itemize}\footnotesize
-        \item Charge drifting near edge contributes $\ll 1$\%
+        \item Charge drifting near edge contributes $< 1$\%
         \end{itemize}
       \end{itemize}
     \end{column}
@@ -273,12 +322,12 @@
       \begin{center}
         \includegraphics[width=0.9\textwidth,clip,trim=0cm 0cm 0cm 0cm]{steps/uweight2.png}%
         
-        Weighting \textbf{gradient magnitude}.
+        Weighting \textbf{field magnitude} ($|\vec{E}_{weight}|$).
       \end{center}      
     \end{column}
   \end{columns}
   \begin{center}
-    Zoomed in to inter-plane region.
+    View is zoomed in to the inter-plane region, wires partially transparent.
   \end{center}
 \end{frame}
 
@@ -303,8 +352,8 @@
     \includegraphics<1>[height=5cm,clip,trim=0cm 8cm 0cm 8cm]{current-slice.png}
     \includegraphics<2>[height=5cm,clip,trim=0cm 8cm 0cm 8cm]{current-3d.png}
     
-    \only<1>{One slice shows \textbf{spurious artifacts}.}
-    \only<2>{Average over longitudinal lines of paths.}
+    \only<1>{One slice shows some \textbf{spurious artifacts} (known cause).}
+    \only<2>{Average over many slices in wire-longitudinal direction.}
   \end{center}
   
 \end{frame}
@@ -314,10 +363,12 @@
   \begin{center}
     \includegraphics[height=5cm,clip,trim=0 0cm 0 0cm]{current-responses.pdf}
   \end{center}
+  \footnotesize 
+  Average over 3mm in longitudinal direction and  paths w/in $\pm$1.5mm of wire.
   \begin{itemize}
-  \item Response on wire 0 due to charge drifting in its region
-  \item Wire regions 1-5 progressively further.
-  \item Wire regions 6-9 not shown.
+  \item Wire region 0 is $\pm$1.5mm around central U-wire.
+  \item Wire regions 1-5 progressively further in transverse direction.
+  \item Wire regions 6-9 not shown here.
   \end{itemize}
 \end{frame}
 
@@ -326,12 +377,17 @@
 \begin{frame}
   \frametitle{Work Still To Do}
   \begin{itemize}
-  \item Finish with $\mu$Boone-like wires.
-  \item Start on DUNE-like wires.
-    \begin{itemize}
+  \item Finish with the $\mu$Boone-like wires crossing pattern.
+  \item Start on DUNE-like wire pattern.
+    \begin{itemize}\footnotesize
     \item Approximately 30 unique wires compared to $\mu$B's 3!
     \end{itemize}
-  \item Look at design improvements of novel wire plane ideas.
+  \item Investigate edge effects 
+    \begin{itemize}\footnotesize
+    \item near field cage
+    \item inside/between APAs
+    \end{itemize}
+  \item Look at design improvements of proposed, novel wire plane configurations.
   \end{itemize}
 \end{frame}
 
