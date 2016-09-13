@@ -333,36 +333,13 @@
 
 
 \begin{frame}
-  \frametitle{Current Waveforms as Volumetric Data}
-  \begin{center}
-    \includegraphics[height=7cm,clip,trim=0cm 0cm 0cm 0cm]{current-iso.png}
+  \frametitle{Response Functions - U-Wire}
 
-    \footnotesize
-    X=along U-wire, Y=transverse to U-wire, Z=time, color=current.
+  \begin{center}
+    \includegraphics[height=5cm,clip,trim=0 0cm 0cm 0cm]{steps/ucurrent-responses.pdf}%
+    \includegraphics[height=5cm,clip,trim=0 0cm 0cm 0cm]{steps/upaths-1.png}
   \end{center}
 
-\end{frame}
-
-\begin{frame}
-  \frametitle{Current Waveforms vs. Transverse Location}
-  \begin{center}
-    Current (\textcolor{red}{red=positive}, \textcolor{blue}{blue=negative}, \textcolor{green}{green near zero}) \\
-    in time vs position transverse to U-wire.
-
-    \includegraphics<1>[height=5cm,clip,trim=0cm 8cm 0cm 8cm]{current-slice.png}
-    \includegraphics<2>[height=5cm,clip,trim=0cm 8cm 0cm 8cm]{current-3d.png}
-    
-    \only<1>{One slice shows some \textbf{spurious artifacts} (known cause).}
-    \only<2>{Average over many slices in wire-longitudinal direction.}
-  \end{center}
-  
-\end{frame}
-
-\begin{frame}
-  \frametitle{Response Functions - U Wire}
-  \begin{center}
-    \includegraphics[height=5cm,clip,trim=0 0cm 0 0cm]{current-responses.pdf}
-  \end{center}
   \footnotesize 
   Average over 3mm in longitudinal direction and  paths w/in $\pm$1.5mm of wire.
   \begin{itemize}
@@ -372,12 +349,46 @@
   \end{itemize}
 \end{frame}
 
+\begin{frame}
+  \frametitle{Response Functions - V-Wire}
+  \begin{center}
+    \includegraphics[height=5cm,clip,trim=0cm 0cm 0 0cm]{steps/vcurrent-responses.pdf}%
+    \includegraphics[height=5cm,clip,trim=0cm 0cm 0 0cm]{steps/vpaths-1.png}
+  \end{center}
+  \footnotesize 
+  \begin{itemize}
+  \item Some end-of-track jaggies need checking, maybe due to ``lucky symmetry''.
+    \begin{itemize}
+    \item[$\rightarrow$] more severe example in W-wires
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Response Functions - W-Wire}
+  \begin{center}
+    \includegraphics[height=5cm,clip,trim=0 0cm 0cm 0cm]{steps/wcurrent-responses.pdf}%
+    \includegraphics[height=5cm,clip,trim=0 0cm 0cm 0cm]{steps/wpaths-1.png}
+  \end{center}
+  \footnotesize 
+  \begin{itemize}
+  \item One set of paths right on line of symmetry take an extra-long time.
+    \begin{itemize}\scriptsize
+    \item[$\Rightarrow$] Need to fill in with more intermediate paths.
+    \end{itemize}
+  \item Non-unipolar signals from charge in wire region $\ge1$
+  \end{itemize}
+\end{frame}
+
 \section{Todo}
 
 \begin{frame}
   \frametitle{Work Still To Do}
   \begin{itemize}
   \item Finish with the $\mu$Boone-like wires crossing pattern.
+    \begin{itemize}
+    \item Fill in with more paths, especially wire region 0, 1, 2.
+    \end{itemize}
   \item Start on DUNE-like wire pattern.
     \begin{itemize}\footnotesize
     \item Approximately 30 unique wires compared to $\mu$B's 3!
@@ -387,7 +398,7 @@
     \item near field cage
     \item inside/between APAs
     \end{itemize}
-  \item Look at design improvements of proposed, novel wire plane configurations.
+  \item Look at wire plane configurations from proposed LArTPC design optimizations.
   \end{itemize}
 \end{frame}
 
