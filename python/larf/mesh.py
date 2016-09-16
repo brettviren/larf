@@ -206,9 +206,8 @@ def result_to_grid(res):
     '''
     Return a BEM++ grid object made from the larf.model.Result
     '''
-    arrs = {a.type:a.data for a in res.arrays}
-
-    pts, tri, dom = arrs['points'],arrs['triangles'],arrs['elscalar']
+    arrs = res.array_data_by_name()
+    pts, tri, dom = arrs['vertices'],arrs['elements'],arrs['domains']
     assert pts.shape[1] == 3
     assert len(tri) == len(dom)
     pts, tri = make_unique(pts, tri)

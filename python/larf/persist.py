@@ -9,12 +9,9 @@ Functions here are used by CLI assuming they follow
 naming pattern.  
 '''
 import os.path as osp
+import math
 import numpy
 from larf.util import mgrid_to_linspace
-
-def save_result_json(result, outfile, **kwds):
-    'write me'
-    return not_implemented
 
 
 def _save_mgrid_vtk(result, outfile, **kwds):
@@ -142,6 +139,67 @@ def save_drift_vtk(result, outfile, **kwds):
     write_data(ug, outfile)
 
 
+def save_current_vtk(result, outfile, **kwds):
+    '''
+    Save a current result into a VTK file
+    '''
+    # Current result has N_path pscalar arrays (N_i,), one per path and holding current for each step
+    # Drift result i has path points array (N_i,4), same name as current
+    # Starts result has (A,B,3) array of starting points. A*B=N_path
+
+    # goal: export in A x B x max(N_i) array of scalar currents
+    # goal2: export current_points and current pscalar
+    from tvtk.api import tvtk, write_data
+
+    cres = result
+    dres = cres.parent_by_type('drift') # drift
+    sres = dres.parent_by_type('points')  # starts
+
+    carrs = [a.data for a in cres.arrays if a.type == 'pscalar']
+    maxticks = max([a.shape[0] for a in carrs])
+    print '%d current arrays, maxticks=%d' % (len(carrs), maxticks)
+
+    start_points = sres.arrays[0].data
+    nlong, nlat = start_points.shape[:2]
+    longdiff = start_points[0,0] - start_points[1,0]
+    dlong = math.sqrt(numpy.dot(longdiff, longdiff))
+    latdiff = start_points[0,0] - start_points[0,1]
+    dlat = math.sqrt(numpy.dot(latdiff, latdiff))
+
+    #darrs = [a.data for a in dres.arrays if a.type == 'path']
+    #p1 = darrs[0]
+    #dt = p1[1,3] - p1[0,3]
+    dt = 0.1
+    spacing = (dlong, dlat, dt)
+    
+    print "spacing %s" % str(spacing)
+
+    current = numpy.zeros((nlong, nlat, maxticks))
+    print "current %s" % str(current.shape)
+    avgcurrent = numpy.zeros((nlat, maxticks))
+
+    indices = numpy.array(range(len(carrs))).reshape((nlong, nlat))
+    for ilong in range(nlong):
+        for ilat in range(nlat): # fastest index, see larf.points.wires.aligned_grid
+            ind = indices[ilong,ilat]
+            cur = carrs[ind]
+            ncur = len(cur)
+            print '%d: %d %d %d' % (ind, ilong, ilat, ncur)
+            current[ilong,ilat,:ncur] = cur
+            avgcurrent[ilat,:ncur] += cur
+
+    # hijack this function to also dump out an average.
+    avgcurrent /= nlong
+    npzfile = osp.splitext(outfile)[0] + '.npz'
+    numpy.savez_compressed(npzfile, current=avgcurrent)
+
+            
+    dat = tvtk.ImageData(spacing=spacing, dimensions=current.shape)
+    dat.point_data.scalars = current.ravel(order='F')
+    dat.point_data.scalars.name = 'current'
+    write_data(dat, outfile)
+
+
 def save_surface_vtk(result, outfile, **kwds):
     '''
     Save a surface result to a VTK file.
@@ -161,6 +219,17 @@ def save_surface_vtk(result, outfile, **kwds):
 
     write_data(pd, outfile)
     return
+
+def save_surface_msh(result, outfile, **kwds):
+    '''
+    Save a mesh result into a MSH ASCII file
+    '''
+    import larf.mesh
+    import bempp.api
+    grid = larf.mesh.result_to_grid(result)
+    bempp.api.export(grid=grid, file_name = outfile)
+
+
 
 def save_volume_vtk(result, outfile, **kwds):
     '''
