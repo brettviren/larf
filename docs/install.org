@@ -15,24 +15,57 @@ LARF itself is a pure-Python package with a command line interface called =larf=
 Assuming a recent Debian-based distribution:
 
 #+BEGIN_SRC sh
-  $ sudo apt-get install gmsh python-sqlalchemy sqlite3 python-virtualenv \
-                         python-scipy python-matplotlib python-numpy
+  $ sudo apt install gmsh python-sqlalchemy sqlite3 python-virtualenv \
+                     python-scipy python-matplotlib python-numpy
+  $ sudo apt install paraview paraview-python mayavi2
   $ virtualenv --system-site-packages venv
   $ source venv/bin/activate
   $ pip install pygmsh meshio nose
 #+END_SRC
 
+Strictly speaking, =paraview= is optional, but you *will* want it for
+an fantastic way to visualize the various forms of 3D data that LARF
+produces.  The =mayavi2= package is required for exporting LARF
+results to the VTK format that =paraview= consumes.
+
 * Install BEM++
 
-See [[http://www.bempp.org/installation.html][BEM++ install instructions]].  Eg:
+See [[http://www.bempp.org/installation.html#sourceinstall][BEM++ install instructions]]  LARF needs the development version, so see "Building BEM++ from scratch".   Don't forget to check out the development branch.
 
 #+BEGIN_SRC sh
-  $ wget http://www.bempp.org/files/python-bempp_wily_3.0.3_amd64.deb
-  $ sudo dpkg -i python-bempp_wily_3.0.3_amd64.deb
-  $ sudo apt-get -f install
+  $ git clone https://github.com/bempp/bempp.git
+  $ cd bempp/
+  $ git checkout -b development origin/development
 #+END_SRC
 
-If =dpkg= command will fail the subsequent =apt-get= will install missing dependencies and complete the BEM++ installation.
+
+On Ubuntu, you will need, at least:
+
+#+BEGIN_SRC sh
+  $ sudo apt install gmsh gmsh-doc libaec0 libann0 \
+                     libfltk-gl1.3 libfltk-images1.3 \
+                     libfltk1.3 libgl2ps0 libhdf5-openmpi-10 \
+                     libmed1v5 liboce-foundation10 \
+                     liboce-modeling10 libsz2 libtet1.5 \
+                     python-decorator python-scipy
+#+END_SRC
+
+This list is based on what is pulled in by the =.deb= package for the production version.
+Having these additional packages installed helps to reduce the amount of packages to compile:
+
+#+BEGIN_SRC sh
+  $ sudo apt install libtbb-dev libtbb2 cython python-sphinx
+#+END_SRC
+
+Do *not* install Ubuntu's version of =libdune= packages (and don't confuse them with the DUNE experiment!).
+
+Now, build:
+
+#+BEGIN_SRC sh
+  $ mkdir bempp-build && cd bempp-build
+  $ cmake -DCMAKE_INSTALL_PREFIX=/path/to/opt ../bempp
+  $ make -j8 && make install
+#+END_SRC
 
 * Install LARF itself
 

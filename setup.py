@@ -7,6 +7,7 @@ setup(
     install_requires = [
         'Click',
         'meshio',
+        'SQLAlchemy',
     ],
     entry_points = dict(
         console_scripts = [
