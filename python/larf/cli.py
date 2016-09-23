@@ -345,7 +345,7 @@ def cmd_wires(ctx, wires, name):
               help='The "wires" RESULT to use (id or name, default=use most recent).')
 @click.argument('name')
 @click.pass_context
-def cmd_wires(ctx, points, wires, name):
+def cmd_points(ctx, points, wires, name):
     '''
     Generate points, possibly with a wires result as a guide.
     '''

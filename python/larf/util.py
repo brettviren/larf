@@ -126,6 +126,40 @@ def ray_direction(ray):
     ray = numpy.asarray(ray)
     return vec_direction(ray[1] - ray[0])
 
+def ray_approach(r1, r2):
+    '''
+    Return a ray connecting the two at the points of closets mutual approach.
+    '''
+    # http://geomalgorithms.com/a07-_distance.html
+    P = numpy.asarray(r1)
+    Q = numpy.asarray(r2)
+
+    u = P[1] - P[0]
+    v = Q[1] - Q[0]
+    w0 = P[0] - Q[0]
+    a = numpy.dot(u,u)
+    b = numpy.dot(u,v)
+    c = numpy.dot(v,v)
+    d = numpy.dot(u,w0)
+    e = numpy.dot(v,w0)
+    den = (a*c-b*b)
+    if den == 0.0:              # parallel rays
+        sc = 0
+        tc = d/b
+    else:
+        sc = (b*e-c*d) / den
+        tc = (a*e-b*d) / den
+    return (Q[0] + tc*v , P[0] + sc*u)
+
+def ray_triangle(rays):
+    vertices = list()
+    for ind1 in range(3):
+        ind2 = (ind1+1)%3
+        Q,P = ray_approach(rays[ind1], rays[ind2])
+        vertices.append(Q)
+    return vertices
+
+    
 def in_bounds(bounds, p):
     bmin,bmax = bounds
     for ind in range(3):

@@ -34,14 +34,16 @@ def dqdt(parents=(), charge=1,
     all_points = numpy.vstack(path_points)
         
     batches = larf.points.batch(all_points, batch_paths)
-    print '%d batches' % len(batches)
+    nbatches = len(batches)
+    print '%d batches' % nbatches
 
     all_weights = list()
     for count, batch in enumerate(batches):
         points = batch[:,:3]
         times = batch[:,3]
         weights = weight(*points)
-        print 'batch %d batch=%s pts=%s times=%s weights=%s' % (count, batch.shape, points.shape, times.shape, weights.shape)
+        print 'batch %d/%d batch=%s pts=%s times=%s weights=%s' % \
+            (count, nbatches, batch.shape, points.shape, times.shape, weights.shape)
         all_weights.append(weights)
     all_weights = numpy.hstack(all_weights)
     print 'all weights: %s' % str(all_weights.shape)

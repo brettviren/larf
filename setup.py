@@ -8,6 +8,7 @@ setup(
         'Click',
         'meshio',
         'SQLAlchemy',
+        'networkx',
     ],
     entry_points = dict(
         console_scripts = [

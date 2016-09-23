@@ -91,11 +91,32 @@ def save_wires_vtk(result, outfile, **kwds):
 
     write_data(pd, outfile)
 
+def _save_meshlike_points_vtk(result, outfile, **kwds):
+
+    from tvtk.api import tvtk, write_data
+    arrs = result.array_data_by_type()
+    points = arrs['points']
+    triangles = arrs['indices']
+
+    pd = tvtk.PolyData()
+    pd.points = points
+    pd.polys = triangles
+
+    #pd.cell_data.scalars = domains
+    #pd.cell_data.scalars.name = "domains"
+
+    write_data(pd, outfile)
+    return
+
 def save_points_vtk(result, outfile, **kwds):
     '''
     Save a points result to a VTK file.
     '''
     from tvtk.api import tvtk, write_data
+
+    if "indices" in result.array_data_by_type():
+        return _save_meshlike_points_vtk(result, outfile, **kwds)
+
     for typ, nam, arr in result.triplets():
         print typ,nam,arr.shape
         dim = arr.shape[:-1]
@@ -108,21 +129,72 @@ def save_points_vtk(result, outfile, **kwds):
         write_data(pd, fname)
 
         
+def save_drift_npz(result, outfile, **kwds):
+    '''
+    Save a drift result into a Numpy .npz file.
+    '''
+    dat = dict()
+    for typ, nam, arr in result.triplets():
+        if typ != "path":
+            continue
+        dat[nam] = arr
+    numpy.savez_compressed(outfile, **dat)
         
-def save_drift_vtk(result, outfile, **kwds):
+    
+        
+def save_drift_vtk(result, outname, **kwds):
     '''
     Save a drift result into a VTK file.
     '''
+    outname = osp.splitext(outname)[0]
 
     from tvtk.api import tvtk, write_data
 
     arrs = result.array_data_by_name()
-    points = arrs['potential_points']
-    potarr = arrs['potential']
+
+    for thing in ['potential','gradient','velocity']:
+
+        points = arrs[thing+'_points']
+        values = arrs[thing]
+        npoints = len(points)
+
+        ug = tvtk.UnstructuredGrid()
+
+        point_type = tvtk.Vertex().cell_type
+
+        cell_types = numpy.array([point_type]*npoints)
+        cell_array = tvtk.CellArray()
+        cells = numpy.array([npoints]+range(npoints))
+        cell_array.set_cells(point_type, cells)
+
+        ug.set_cells(1, cell_array)
+
+        ug.points = points
+        ug.point_data.scalars = values
+        ug.point_data.scalars.name = thing
+
+        fname = '%s-%s.vtk' % (outname, thing)
+        print 'writing %s' % fname
+        write_data(ug, fname)
+
+
+def save_current_vtk(result, outfile, **kwds):
+    '''
+    Save current assuming no structure between starting points
+    '''
+    from tvtk.api import tvtk, write_data
+    cres = result
+    dres = cres.parent_by_type('drift') # drift
+
+    values = numpy.hstack([a.data for a in cres.arrays if a.type == 'pscalar'])
+    points4 = numpy.vstack([a.data for a in dres.arrays if a.type == 'path'])
+    assert len(values) == len(points4)
+    points = points4[:,:3]
     npoints = len(points)
+    print 'shapes: %s %s' % (str(values.shape), str(points.shape))
+
 
     ug = tvtk.UnstructuredGrid()
-
     point_type = tvtk.Vertex().cell_type
 
     cell_types = numpy.array([point_type]*npoints)
@@ -131,17 +203,16 @@ def save_drift_vtk(result, outfile, **kwds):
     cell_array.set_cells(point_type, cells)
 
     ug.set_cells(1, cell_array)
-
     ug.points = points
-    ug.point_data.scalars = potarr
-    ug.point_data.scalars.name = 'potential'
-
+    ug.point_data.scalars = values
+    ug.point_data.scalars.name = 'current'
     write_data(ug, outfile)
 
+        
 
-def save_current_vtk(result, outfile, **kwds):
+def save_current_band_vtk(result, outfile, **kwds):
     '''
-    Save a current result into a VTK file
+    Save a current result into a VTK file, assuming a 2D band of start points
     '''
     # Current result has N_path pscalar arrays (N_i,), one per path and holding current for each step
     # Drift result i has path points array (N_i,4), same name as current
@@ -160,6 +231,8 @@ def save_current_vtk(result, outfile, **kwds):
     print '%d current arrays, maxticks=%d' % (len(carrs), maxticks)
 
     start_points = sres.arrays[0].data
+    print 'shape of start points: %s' % str(start_points.shape)
+
     nlong, nlat = start_points.shape[:2]
     longdiff = start_points[0,0] - start_points[1,0]
     dlong = math.sqrt(numpy.dot(longdiff, longdiff))

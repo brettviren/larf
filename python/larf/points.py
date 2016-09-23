@@ -4,6 +4,8 @@ Various way to make points.
 '''
 from larf import units
 from larf.models import Array
+from larf.util import ray_triangle
+from larf.triangles import Triangle, Edges
 import math
 import numpy
 
@@ -27,6 +29,20 @@ def line(parents=None,          # no parents
     points.append(row)
     return Array(type='points', name='line', data=numpy.asarray(points))
 
+def wires_by_domains(wrayres, domains):
+    '''
+    Return list of wire rays from wire result with domains found in domains.
+    '''
+    wrays = wrayres.get_matching(type='rays')
+    domrays = list()
+
+    for params, wires in zip(wrayres.params, wrays):
+        domain_offset = params['params']['domain_offset']
+        for iw, w in enumerate(wires):
+            dom = domain_offset + iw
+            if dom in domains:
+                domrays.append((dom,  w))
+    return domrays
 
 def wires(parents=(),           # wire result
           offsetx = 20*units.mm, # where points are in x
@@ -66,16 +82,7 @@ def wires(parents=(),           # wire result
         return numpy.asarray(points)
                     
 
-    wrayres = parents[0]
-    wrays = wrayres.get_matching(type='rays')
-    center_wires = list()
-
-    for params, wires in zip(wrayres.params, wrays):
-        domain_offset = params['params']['domain_offset']
-        for iw, w in enumerate(wires):
-            dom = domain_offset + iw
-            if dom in domains:
-                center_wires.append((dom,  w))
+    center_wires = wires_by_domains(parents[0], domains)
     
     arrays = list()
     for dom, wire in center_wires:
@@ -84,7 +91,53 @@ def wires(parents=(),           # wire result
 
     return arrays
 
+def embiggen(vertices, factor=2):
+    '''
+    Make a triangle larger by the given factor.
+    '''
+    if factor == 0:
+        return vertices
+
+    new_vertices=list()
+    for ind1 in range(3):
+        ind2 = (ind1+1)%3
+        ind3 = (ind1+2)%3
+        nv = vertices[ind3] + vertices[ind2] - vertices[ind1]
+        new_vertices.append(nv)
     
+    return embiggen(new_vertices, factor-1)
+
+def triangle(parents = (),          # wires result
+             offsetx = 20*units.mm, # where points are in x
+             domains = (109,209,309), # domain index of wires on which to produce a grid of points
+             splittings = 6,          # number of time to split the overall triangle 
+             embiggenings = 2,        # how many times bigger than the fundamental wire crossing triangle
+              **kwds):
+    '''
+    Produce points inside a triangle defined by the wires as given by
+    their domains.
+
+    Enlarge the triangle by the integral embiggening factor.
+
+    Split up the larger triangle into triangular bins by bifurcating
+    edges splittings number of times.
+    '''
+
+    dom_rays = wires_by_domains(parents[0], domains)    
+    vertices = ray_triangle([dr[1] for dr in dom_rays])
+    for v in vertices:
+        v[0] = offsetx
+    vertices = embiggen(vertices, embiggenings)
+    top = Triangle((0,1,2), Edges(vertices), splittings)
+
+    arrays = list()
+    arrays.append(Array(type='points', name='triangle', data=numpy.vstack(top.points)))
+    arrays.append(Array(type='indices', name='elements', data=numpy.vstack(top.leaf_indicies)))
+    
+    return arrays
+    
+
+
 def batch(points, nper):
     '''
     Partition N_points X 3 array points into list of arrays each array
