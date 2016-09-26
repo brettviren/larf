@@ -7,6 +7,9 @@ from collections import defaultdict
 import larf.store
 from larf.triangles import TriGraph
 
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+
 
 dbfile = sys.argv[1]
 curresid = sys.argv[2]
@@ -55,6 +58,15 @@ print "%d points -> %d splits" % (npoints, nsplit)
 
 trigraph = TriGraph(vertices, nsplit)
 
+def make_dotfile(splitlevel=5):
+    dotname = "%s-%d.dot" % (outname, splitlevel)
+    dotstr = trigraph.dot(splitlevel)
+    print dotname
+    open(dotname,'w').write(dotstr)
+make_dotfile()
+
+sys.exit()
+
 # for nnsplit in range(6):
 #     for nndist in range(1,3):
 #         for node in range(3):
@@ -65,17 +77,15 @@ trigraph = TriGraph(vertices, nsplit)
 #    print 'splits:',n,trigraph.split_distance(n)
 target_distance = trigraph.split_distance(3)
 
+# locate starting points to nearest node at given splitting
+wantsplit = 4
 paths_by_node = defaultdict(list)
-# locate starting points to nearest node at splitting 6
 print 'Setting path indices on nodes'
 for ind,pt in enumerate(starts2d):
-    node = trigraph.closest_node(pt, 3)
-    if not node:
-        print "Can't find node for point:", pt
-        continue
+    node = trigraph.closest_node(pt, wantsplit)
     paths_by_node[node].append(ind)
 
-print '%d unique nodes' % len(paths_by_node)
+print '%d unique nodes' % (len(paths_by_node), )
 
 averaged_currents_by_node = dict()
 for node, pathinds in paths_by_node.items():
@@ -86,6 +96,22 @@ for node, pathinds in paths_by_node.items():
         siz = len(one)
         cur[:siz] += one
     cur /= len(curs)
-    averaged_currents_by_node[node] = cur
+    averaged_currents_by_node[node] = (cur, len(curs))
 
 
+with PdfPages('%s.pdf' % outname) as pdf:
+    for node, (sumcur, ncur) in sorted(averaged_currents_by_node.items()):
+        avgcur = sumcur/ncur
+        fig, axes = plt.subplots()
+        pt2d = trigraph.node(node)['point']
+        fig.suptitle('%d currents for node #%d at Y=%.1f, Z=%.1F' % (ncur, node, pt2d[0], pt2d[1]))
+
+        a = axes
+
+        a.plot(avgcur[:200])
+        a.set_ylabel('current [arb]')
+        a.set_xlabel('time [us]')
+
+        pdf.savefig()
+        plt.close()
+        

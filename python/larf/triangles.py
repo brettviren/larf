@@ -242,6 +242,13 @@ class TriGraph(object):
             self.add_node(node, point, 0)
 
         self.top = self._split(tuple(range(3)), 0)
+        # nodes are all built
+
+        for node in self.graph.nodes():
+            self.node(node)['ortho'] = numpy.zeros((nsplits+1, 3))
+        for sl in range(self.nsplits+1):
+            self._ortho_labels(sl)
+
         
     def node(self, n):
         '''
@@ -260,6 +267,9 @@ class TriGraph(object):
         return ret
 
     def axis_direction(self, axis):
+        '''
+        Return axis direction.  
+        '''
         if axis < 1 or axis > 3:
             return None
         return self.directions[axis-1]
@@ -312,13 +322,19 @@ class TriGraph(object):
         return [x[1] for x in orderbydist]
 
     def closest_node(self, point, splitlevel=None):
+        '''
+        Return the closest node to the given point at the given splitlevel.
+        '''
         if splitlevel is None:
             splitlevel = self.nsplits
-        radius = 0.5 * self.split_distance(splitlevel)
-        nn = self.nearby_nodes(point, radius, splitlevel)
-        if not nn:
-            return
-        return nn[0]
+        # this is the dumbest possible algorithm....
+        dist2node = list()
+        for node in self.atlevel(splitlevel):
+            diff = point - self.node(node)['point']
+            dist2 = numpy.dot(diff,diff)
+            dist2node.append((dist2, node))
+        dist2node.sort()
+        return dist2node[0][1]
 
 
     def tribin(self, point, splitlevel=None):
@@ -448,6 +464,7 @@ class TriGraph(object):
         for count,n1 in enumerate(nodes):
             n2 = nodes[(count+1)%3]
             add_edge(n1,n2)
+            #print 'readd node %d at splitlevel %d' % (n1, splitlevel)
             self.add_node(n1, None, splitlevel) # re-add to add this splitlevel
 
         if splitlevel == self.nsplits:
@@ -466,10 +483,10 @@ class TriGraph(object):
                 p2 = self.node(n2)['point']
                 midpt = 0.5*(p1+p2)
                 midnode = len(self.graph)
+                #print "add midnode %d -> %d -> %d" % (n1,midnode,n2)
                 self.add_node(midnode, midpt, splitlevel+1)
                 edge['midnode'] = midnode
 
-            self.add_node(n1, None, splitlevel) # re-add to add this splitlevel
             newtris[n1].append(midnode)
             newtris[n2].append(midnode)
             midtri.append(midnode)
@@ -487,3 +504,77 @@ class TriGraph(object):
 
         return self.Triangle(nodes, children)
 
+    def dot(self, splitlevel=None, nodelabel=r'{number}\n({x:.2},{y:.2})', edgelabel='', scaleedges=10.0):
+        if splitlevel is None:
+            splitlevel = self.nsplits
+
+        colors = 'pink black red blue purple green yellow'.split()
+        penwidths = [2*x-1 for x in range(len(colors))]
+        penwidths.reverse()
+
+
+        lines = ["digraph triangles {"]
+        for node in self.atlevel(splitlevel):
+            ndat = self.node(node)
+
+            ndat['number'] = node
+            pt = ndat['point']
+            if abs(pt[0]) < 1.0e-6: pt[0] = 0.0
+            if abs(pt[1]) < 1.0e-6: pt[1] = 0.0
+            ndat['x'] = pt[0]
+            ndat['y'] = pt[1]
+            pt10 = scaleedges * pt
+            label = nodelabel.format(**ndat)
+            lines.append('\t%d [ pos="%f,%f!",label="%s" ];\n' % (node, pt10[0], pt10[1], label))
+            
+        for n1,n2,dat in self.graph.edges(data=True):
+            if dat['splitlevel'] > splitlevel:
+                continue
+            label = edgelabel.format(**dat)
+            color = colors[dat['splitlevel']]
+            width = penwidths[dat['splitlevel']]
+            lines.append('\t%d -> %d [color=%s,penwidth=%d,label="%s"];\n' % (n1, n2, color, width, label))
+        lines.append("}\n");
+        return '\n'.join(lines)
+
+
+    def follow_axis(self, seed, axis, splitlevel = None):
+        '''
+        Return a generator that follows an axis (1,2,3) starting from
+        the seed node at the given splitlevel.
+        '''
+        if splitlevel is None:
+            splitlevel = self.nsplits
+
+        def next_node(node):
+            for nn, edge in self.graph.edge[node].items():
+                if splitlevel == edge['splitlevel'] and axis == edge['axis']:
+                    return nn
+            return
+
+        while True:
+            yield seed
+            nn = next_node(seed)
+            if nn is None:
+                break
+            seed = nn
+            
+                
+
+    def _ortho_labels(self, splitlevel):
+        '''
+        Internal method to apply orthogonal numbering labels found
+        under node['ortho'][splitlevel, axis-1], where axis is in
+        (1,2,3).
+        '''
+        for seed in range(3):
+            axis = seed + 1
+            axis2 = (seed+1)%3 + 1
+            self.node(seed)['ortho'][splitlevel,axis-1] = 1
+            #print splitlevel, seed, axis, axis2
+            for orthonum, firstnode in enumerate(self.follow_axis(seed, axis2, splitlevel)):
+                #print 'line:',orthonum, firstnode
+                for node in self.follow_axis(firstnode, axis, splitlevel):
+                    self.node(node)['ortho'][splitlevel, axis-1] = orthonum + 1
+
+            

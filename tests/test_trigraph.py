@@ -3,22 +3,23 @@ import math
 import numpy
 from larf.triangles import TriGraph
 
-vertices = [
+vertices = tuple([
     (0.0,1.0), 
     (math.cos(math.radians(30)), -math.sin(math.radians(30))),
-    (-math.cos(math.radians(30)), -math.sin(math.radians(30)))]
-trigraph = TriGraph(vertices, 3)
+    (-math.cos(math.radians(30)), -math.sin(math.radians(30)))])
 
 
 def test_trigraph_dot():
+    trigraph = TriGraph(vertices, 5)
+
     graph = trigraph.graph
-    colors = 'black red blue yellow'.split()
-    penwidths = [8,6,4,2]
+    colors = 'black red blue green yellow purple'.split()
+    penwidths = [8,6,4,2,1,1]
 
     with open("test_trigraph.dot","w") as dot:
         dot.write("digraph triangles {\n")
         for node in graph.nodes():
-            pt = 10.0 * graph.node[node]['point']
+            pt = 50.0 * graph.node[node]['point']
             splits = graph.node[node]['splitlevel']
             label = r"n%d\n%s" % (node, str(list(splits)))
             dot.write('\tn%d [ pos="%f,%f!",label="%s" ];\n' % (node, pt[0], pt[1], label))
@@ -31,6 +32,7 @@ def test_trigraph_dot():
         dot.write("}\n");
 
 def test_trigraph_bin():
+    trigraph = TriGraph(vertices, 3)
     xs = [trigraph.graph.node[n]['point'][0] for n in range(3)]
     ys = [trigraph.graph.node[n]['point'][1] for n in range(3)]
 
@@ -81,7 +83,46 @@ def test_trigraph_values():
         print splitlevel,len(set(nodesatN)),len(tgN.graph.nodes()),sdN
         print
 
+
+def test_trigraph_makedot():
+    nsplits = 5
+    splitlevel = nsplits
+    tgn = TriGraph(vertices, nsplits)
+    dotstr = tgn.dot(splitlevel, scaleedges=50)
+    dotname = "test_trigraph-%d-%d.dot" % (splitlevel, nsplits)
+    print dotname
+    open(dotname,'w').write(dotstr)
+
+
+
+def test_trigraph_monuments():
+    nsplits = 5
+    tgn = TriGraph(vertices, nsplits)
+    leaves = tgn.atlevel(nsplits)
+    nleaves = len(leaves)
+    assert nleaves == 561, "got %d" % nleaves
+
+    for splitlevel in [5]: # range(1, nsplits+1):
+        for seed in range(3):
+            axis = seed + 1
+            road = [n for n in tgn.follow_axis(seed, axis, splitlevel)]
+            if not road:
+                print "NO ROAD SL:%d seed:%d axis:%d"% (splitlevel, seed, axis)
+                continue
+            print "SL:%d seed:%d axis:%d nroad=%d, first=%d, last=%d"% (splitlevel, seed, axis, len(road), road[0], road[-1])
+            print road
+
+
+    return
+    for node in range(9) + [774]:
+        ndat = tgn.node(node)
+        print node, ndat['point']
+        print ndat['ortho']
+    
+
 if '__main__' == __name__:
     test_trigraph_dot()
     #test_trigraph_bin()
     test_trigraph_values()
+    test_trigraph_makedot()
+    test_trigraph_monuments()
