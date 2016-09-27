@@ -85,10 +85,11 @@ def test_trigraph_values():
 
 
 def test_trigraph_makedot():
-    nsplits = 5
+    scaleedges = [ 1, 1, 5, 10, 20, 40, 80 ]
+    nsplits = 3
     splitlevel = nsplits
     tgn = TriGraph(vertices, nsplits)
-    dotstr = tgn.dot(splitlevel, scaleedges=50)
+    dotstr = tgn.dot(splitlevel, scaleedges=scaleedges[nsplits])
     dotname = "test_trigraph-%d-%d.dot" % (splitlevel, nsplits)
     print dotname
     open(dotname,'w').write(dotstr)
@@ -120,9 +121,18 @@ def test_trigraph_monuments():
         print ndat['ortho']
     
 
+def test_trigraph_ortho():
+    tgn = TriGraph(vertices, 3)    
+    for node in tgn.graph.nodes():
+        ndat = tgn.node(node)
+        ortho = ndat['ortho']
+        northo = numpy.sum(ortho)
+        assert northo > 0
+
 if '__main__' == __name__:
-    test_trigraph_dot()
+    #test_trigraph_dot()
     #test_trigraph_bin()
-    test_trigraph_values()
+    #test_trigraph_values()
     test_trigraph_makedot()
-    test_trigraph_monuments()
+    #test_trigraph_monuments()
+    test_trigraph_ortho()

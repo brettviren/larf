@@ -243,6 +243,7 @@ class TriGraph(object):
 
         self.top = self._split(tuple(range(3)), 0)
         # nodes are all built
+        self.rgraph = self.graph.reverse()
 
         for node in self.graph.nodes():
             self.node(node)['ortho'] = numpy.zeros((nsplits+1, 3))
@@ -286,13 +287,13 @@ class TriGraph(object):
         '''
         if splitlevel is None:
             splitlevel = self.nsplits
-
-        for other in self.graph.neighbors(node):
-            if axis != self.node(other)['axis']:
-                continue
-            if splitlevel != self.node(other)['splitlevel']:
-                continue
-            return other
+        graph = self.graph
+        if axis < 0:
+            graph = self.rgraph
+            axis *= -1
+        for other,edge in graph.edge[node].items():
+            if edge['axis'] == axis and edge['splitlevel'] == splitlevel:
+                return other
 
     def split_distance(self, splitlevel=None):
         if splitlevel is None:
@@ -504,7 +505,7 @@ class TriGraph(object):
 
         return self.Triangle(nodes, children)
 
-    def dot(self, splitlevel=None, nodelabel=r'{number}\n({x:.2},{y:.2})', edgelabel='', scaleedges=10.0):
+    def dot(self, splitlevel=None, nodelabel=r'{number}\n({x:.2},{y:.2})\n{orthovec}', edgelabel='', scaleedges=10.0):
         if splitlevel is None:
             splitlevel = self.nsplits
 
@@ -523,6 +524,7 @@ class TriGraph(object):
             if abs(pt[1]) < 1.0e-6: pt[1] = 0.0
             ndat['x'] = pt[0]
             ndat['y'] = pt[1]
+            ndat['orthovec'] = str([int(x) for x in ndat['ortho'][splitlevel,:]])
             pt10 = scaleedges * pt
             label = nodelabel.format(**ndat)
             lines.append('\t%d [ pos="%f,%f!",label="%s" ];\n' % (node, pt10[0], pt10[1], label))
@@ -568,13 +570,12 @@ class TriGraph(object):
         (1,2,3).
         '''
         for seed in range(3):
-            axis = seed + 1
-            axis2 = (seed+1)%3 + 1
-            self.node(seed)['ortho'][splitlevel,axis-1] = 1
-            #print splitlevel, seed, axis, axis2
-            for orthonum, firstnode in enumerate(self.follow_axis(seed, axis2, splitlevel)):
-                #print 'line:',orthonum, firstnode
-                for node in self.follow_axis(firstnode, axis, splitlevel):
-                    self.node(node)['ortho'][splitlevel, axis-1] = orthonum + 1
+            down_ind = seed
+            down_axis = down_ind + 1
+            back_ind = (seed+1)%3
+            back_axis = back_ind + 1
 
+            for orthonum, firstnode in enumerate(self.follow_axis(seed, down_axis, splitlevel)):
+                for node in self.follow_axis(firstnode, back_axis, splitlevel):
+                    self.node(node)['ortho'][splitlevel, back_ind] = orthonum
             
